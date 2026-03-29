@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { useRouter } from "next/navigation"
 
 const filters = [
   { name: "None", css: "" },
@@ -27,6 +28,7 @@ const filters = [
 ]
 
 export default function Camera({
+  
   totalShots = 8,
   onComplete,
   template
@@ -35,6 +37,8 @@ export default function Camera({
   onComplete?: (photos: string[]) => void
   template?: any
 }) {
+
+  const router = useRouter()
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -162,7 +166,7 @@ export default function Camera({
     <div className="w-screen h-[100dvh] flex flex-col bg-white overflow-hidden pb-4 md:pb-6">
 
       {/* HEADER */}
-      <div className="bg-blue-500 text-white px-5 py-3 text-lg md:text-xl font-bold rounded-xl shadow flex-shrink-0 mx-2 mt-2">
+      <div className="bg-red-500 text-white px-5 py-3 text-lg md:text-xl font-bold rounded-xl shadow flex-shrink-0 mx-2 mt-2">
         Adhifa Studio
       </div>
 
@@ -178,7 +182,7 @@ export default function Camera({
             <div className="flex gap-2">
               {[3,5,7].map(n => (
                 <button key={n} onClick={()=>setTimer(n)}
-                  className={`px-3 py-1 rounded ${timer===n?"bg-blue-500 text-white":"bg-gray-200"}`}>
+                  className={`px-3 py-1 rounded ${timer===n?"bg-red-500 text-white":"bg-gray-200"}`}>
                   {n}s
                 </button>
               ))}
@@ -190,7 +194,7 @@ export default function Camera({
             <div className="flex gap-2">
               {[1,2,3].map(n => (
                 <button key={n} onClick={()=>setDelay(n)}
-                  className={`px-3 py-1 rounded ${delay===n?"bg-blue-500 text-white":"bg-gray-200"}`}>
+                  className={`px-3 py-1 rounded ${delay===n?"bg-red-500 text-white":"bg-gray-200"}`}>
                   {n}s
                 </button>
               ))}
@@ -215,6 +219,25 @@ export default function Camera({
               ))}
             </select>
           </div>
+
+<button
+  onClick={() => router.push("/templates")}
+  className="
+    w-full mt-4
+
+    bg-red-500 hover:bg-red-600
+    text-white font-semibold
+
+    py-2 rounded-lg
+
+    shadow-md hover:shadow-lg
+    hover:-translate-y-[1px]
+
+    transition-all duration-200
+  "
+>
+  ← Kembali
+</button>
         </div>
 
         {/* CAMERA */}
@@ -245,7 +268,7 @@ export default function Camera({
               onClick={startCapture}
               className="absolute bottom-5 left-1/2 -translate-x-1/2 w-16 h-16 md:w-20 md:h-20 bg-white rounded-full shadow flex items-center justify-center"
             >
-              <div className="w-10 h-10 md:w-12 md:h-12 border-2 border-blue-500 rounded-full"></div>
+              <div className="w-10 h-10 md:w-12 md:h-12 border-2 border-red-500 rounded-full"></div>
             </div>
 
           </div>
@@ -272,7 +295,7 @@ export default function Camera({
     className={`w-[110px] md:w-[130px] px-3 py-2 text-xs md:text-sm rounded-xl text-center truncate transition-all duration-200
 
       ${activeFilter.name === f.name
-        ? "bg-blue-500 text-white shadow-lg scale-105"
+        ? "bg-red-500 text-white shadow-lg scale-105"
         : "bg-white/80 text-gray-700 hover:bg-gray-200 active:scale-95"
       }
     `}

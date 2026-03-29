@@ -42,11 +42,7 @@ export default function Dashboard() {
     <div className="h-screen w-full bg-gray-100 flex flex-col overflow-hidden">
 
       {/* HEADER */}
-      <div className="px-8 py-5 bg-blue-500 text-white shadow-md">
-        <h1 className="text-xl font-semibold">
-          Adhifa Studio
-        </h1>
-      </div>
+      
 
       {/* CONTENT */}
       <div className="flex-1 flex flex-col items-center p-8 overflow-hidden">
@@ -65,7 +61,7 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6">
 
             {templates.map((name, i) => (
               <TemplateCard
@@ -144,13 +140,7 @@ function TemplateCard({ name, onClick }: any) {
           <canvas ref={canvasRef} className="max-w-full max-h-full" />
         </div>
 
-        <div className="p-3 text-center">
-          <div className="font-semibold capitalize">{name}</div>
 
-          <Button className="w-full mt-2 bg-blue-500 text-white">
-            Use Template
-          </Button>
-        </div>
 
       </CardContent>
     </Card>
