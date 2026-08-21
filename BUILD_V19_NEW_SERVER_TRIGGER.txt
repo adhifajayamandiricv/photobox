@@ -1,0 +1,1 @@
+Build SmandaApp v1.9 with the same latest native behavior, now pointing to https://sim.sman2kuningan.my.id/.
