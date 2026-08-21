@@ -1,0 +1,140 @@
+name: Build SmandaApp v1.5
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-smandaapp-v15:
+    if: github.head_ref == 'smandaapp-clean-build'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Apply SmandaApp v1.5 final icon and native fixes
+        shell: bash
+        run: |
+          set -e
+          mkdir -p app/src/main/res/drawable app/src/main/res/mipmap app/src/main/res/mipmap-anydpi-v26 app/src/main/res/values
+          curl -fL --retry 3 'https://sman2kuningan.sch.id/wp-content/themes/mading/images/logo.png' -o app/src/main/res/drawable/smanda_logo_launcher.png
+
+          cat > app/src/main/res/drawable/ic_launcher_foreground.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item android:left="18dp" android:top="18dp" android:right="18dp" android:bottom="18dp">
+                  <bitmap android:src="@drawable/smanda_logo_launcher" android:gravity="center" />
+              </item>
+          </layer-list>
+          XML
+
+          cat > app/src/main/res/mipmap/ic_launcher.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item>
+                  <shape android:shape="rectangle">
+                      <solid android:color="#EAF7FF" />
+                  </shape>
+              </item>
+              <item android:left="10dp" android:top="10dp" android:right="10dp" android:bottom="10dp">
+                  <bitmap android:src="@drawable/smanda_logo_launcher" android:gravity="center" />
+              </item>
+          </layer-list>
+          XML
+
+          cat > app/src/main/res/mipmap/ic_launcher_round.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item>
+                  <shape android:shape="oval">
+                      <solid android:color="#EAF7FF" />
+                  </shape>
+              </item>
+              <item android:left="10dp" android:top="10dp" android:right="10dp" android:bottom="10dp">
+                  <bitmap android:src="@drawable/smanda_logo_launcher" android:gravity="center" />
+              </item>
+          </layer-list>
+          XML
+
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/smanda_icon_background" />
+              <foreground android:drawable="@drawable/ic_launcher_foreground" />
+          </adaptive-icon>
+          XML
+
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/smanda_icon_background" />
+              <foreground android:drawable="@drawable/ic_launcher_foreground" />
+          </adaptive-icon>
+          XML
+
+          python - <<'PY'
+          from pathlib import Path
+          # colors
+          colors=Path('app/src/main/res/values/colors.xml')
+          if colors.exists():
+              s=colors.read_text()
+              if 'smanda_icon_background' not in s:
+                  s=s.replace('</resources>','    <color name="smanda_icon_background">#EAF7FF</color>\n</resources>')
+              colors.write_text(s)
+          else:
+              colors.write_text('<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="smanda_icon_background">#EAF7FF</color>\n</resources>\n')
+
+          p=Path('app/src/main/java/id/sman2kuningan/smandaapp/MainActivity.java')
+          s=p.read_text()
+          if 'import android.webkit.WebResourceRequest;' not in s:
+              s=s.replace('import android.webkit.WebViewClient;', 'import android.webkit.WebViewClient;\nimport android.webkit.WebResourceRequest;\nimport android.webkit.WebStorage;')
+          if 'private boolean logoutPending = false;' not in s:
+              s=s.replace('private boolean loginPending = false;', 'private boolean loginPending = false;\n    private boolean logoutPending = false;')
+          s=s.replace('SmandaApp/1.2.0 SIM-SMANDA-App','SmandaApp/1.5.0 SIM-SMANDA-App')
+          s=s.replace('Dibuat dan dikembangkan oleh Dadi Hardadi dan OSIS SMANDA','Dibuat dan dikembangkan oleh Dadi Hardadi & OSIS SMANDA')
+
+          marker='''        web.setWebViewClient(new WebViewClient(){\n            @Override public void onPageFinished(WebView view,String url){'''
+          replacement='''        web.setWebViewClient(new WebViewClient(){\n            @Override public boolean shouldOverrideUrlLoading(WebView view, String url){\n                return handleSpecialUrl(url);\n            }\n\n            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request){\n                return request != null && handleSpecialUrl(request.getUrl().toString());\n            }\n\n            @Override public void onPageFinished(WebView view,String url){'''
+          if marker in s and 'shouldOverrideUrlLoading(WebView view, String url)' not in s:
+              s=s.replace(marker,replacement)
+
+          old='''                if (url == null) return;\n                String low = url.toLowerCase();\n\n                if (low.startsWith(BASE.toLowerCase()) && !low.contains("login.php")) {'''
+          new='''                if (url == null) return;\n                String low = url.toLowerCase();\n\n                if (logoutPending) {\n                    if (low.contains("login.php")) finishNativeLogout();\n                    return;\n                }\n\n                if (low.startsWith(BASE.toLowerCase()) && !low.contains("login.php")) {'''
+          if old in s:
+              s=s.replace(old,new)
+
+          insert_before='''    private void returnToNativeLogin(){\n'''
+          methods='''    private boolean handleSpecialUrl(String url){\n        if(url == null) return false;\n        if(url.toLowerCase().startsWith("smandaapp://logout")){\n            performNativeLogout();\n            return true;\n        }\n        return false;\n    }\n\n    private void performNativeLogout(){\n        if(logoutPending) return;\n        logoutPending = true;\n        loginPending = false;\n        Toast.makeText(this,"Keluar dari SmandaApp...",Toast.LENGTH_SHORT).show();\n        web.loadUrl(BASE + "modules/smandaapp/index.php?action=logout&native=1&t=" + System.currentTimeMillis());\n        handler.postDelayed(() -> { if(logoutPending) finishNativeLogout(); }, 6000);\n    }\n\n    private void finishNativeLogout(){\n        if(!logoutPending) return;\n        logoutPending = false;\n        loginPending = false;\n        CookieManager cm = CookieManager.getInstance();\n        cm.removeAllCookies(value -> {\n            cm.flush();\n            runOnUiThread(() -> {\n                try { WebStorage.getInstance().deleteAllData(); } catch(Exception ignored) {}\n                try { web.stopLoading(); } catch(Exception ignored) {}\n                try { web.clearHistory(); } catch(Exception ignored) {}\n                try { web.clearCache(true); } catch(Exception ignored) {}\n                try { web.clearFormData(); } catch(Exception ignored) {}\n                username.setText("");\n                password.setText("");\n                progress.setVisibility(View.GONE);\n                loginButton.setEnabled(true);\n                handler.postDelayed(this::recreate, 120);\n            });\n        });\n    }\n\n'''
+          if insert_before in s and 'private void performNativeLogout()' not in s:
+              s=s.replace(insert_before,methods+insert_before)
+
+          bridge_marker='''        @JavascriptInterface public void loginError(final String msg){'''
+          bridge='''        @JavascriptInterface public void logoutNative(){\n            runOnUiThread(() -> performNativeLogout());\n        }\n\n'''
+          if bridge_marker in s and '@JavascriptInterface public void logoutNative()' not in s:
+              s=s.replace(bridge_marker,bridge+bridge_marker)
+          p.write_text(s)
+
+          manifest=Path('app/src/main/AndroidManifest.xml')
+          ms=manifest.read_text()
+          import re
+          ms=re.sub(r'android:icon="[^"]+"','android:icon="@mipmap/ic_launcher"',ms)
+          if 'android:roundIcon=' not in ms:
+              ms=ms.replace('android:icon="@mipmap/ic_launcher"','android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"')
+          manifest.write_text(ms)
+
+          g=Path('app/build.gradle')
+          gs=g.read_text().replace('versionCode 12','versionCode 15').replace("versionName '1.2.0'","versionName '1.5.0'")
+          g.write_text(gs)
+          PY
+      - run: gradle :app:assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SmandaApp-v1.5.0-final-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
