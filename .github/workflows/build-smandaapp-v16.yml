@@ -1,0 +1,104 @@
+name: Build SmandaApp v1.6
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-smandaapp-v16:
+    if: github.head_ref == 'smandaapp-clean-build'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Apply SmandaApp v1.6 safe status bar and final icon
+        shell: bash
+        run: |
+          set -e
+          mkdir -p app/src/main/res/drawable app/src/main/res/mipmap-anydpi-v26 app/src/main/res/values
+          curl -fL --retry 3 'https://sman2kuningan.sch.id/wp-content/themes/mading/images/logo.png' -o app/src/main/res/drawable/app_icon_smanda.png
+          cat > app/src/main/res/values/ic_launcher_background.xml <<'XML'
+          <resources><color name="ic_launcher_background">#EAF5FF</color></resources>
+          XML
+          cat > app/src/main/res/drawable/ic_launcher_foreground.xml <<'XML'
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item android:gravity="center" android:width="84dp" android:height="84dp">
+                  <bitmap android:src="@drawable/app_icon_smanda" android:gravity="center" />
+              </item>
+          </layer-list>
+          XML
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'XML'
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_launcher_background"/>
+              <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+          </adaptive-icon>
+          XML
+          cp app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/src/main/java/id/sman2kuningan/smandaapp/MainActivity.java')
+          s=p.read_text()
+          if 'import android.os.Build;' not in s:
+              s=s.replace('import android.os.Bundle;', 'import android.os.Bundle;\nimport android.os.Build;')
+          if 'import android.webkit.WebResourceRequest;' not in s:
+              s=s.replace('import android.webkit.WebViewClient;', 'import android.webkit.WebViewClient;\nimport android.webkit.WebResourceRequest;\nimport android.webkit.WebStorage;')
+          if 'private boolean logoutPending = false;' not in s:
+              s=s.replace('private boolean loginPending = false;', 'private boolean loginPending = false;\n    private boolean logoutPending = false;')
+          s=s.replace('SmandaApp/1.2.0 SIM-SMANDA-App','SmandaApp/1.6.0 SIM-SMANDA-App')
+          s=s.replace('Dibuat dan dikembangkan oleh Dadi Hardadi dan OSIS SMANDA','Dibuat dan dikembangkan oleh Dadi Hardadi & OSIS SMANDA')
+
+          old_status='''        getWindow().setStatusBarColor(Color.rgb(20, 83, 202));\n        getWindow().setNavigationBarColor(Color.WHITE);\n        root = new FrameLayout(this);\n        setContentView(root);'''
+          new_status='''        getWindow().setStatusBarColor(Color.WHITE);\n        getWindow().setNavigationBarColor(Color.WHITE);\n        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {\n            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);\n        }\n        root = new FrameLayout(this);\n        setContentView(root);\n        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {\n            root.setOnApplyWindowInsetsListener((v, insets) -> {\n                int topInset = insets.getSystemWindowInsetTop();\n                v.setPadding(0, topInset, 0, 0);\n                return insets;\n            });\n            root.requestApplyInsets();\n        }'''
+          if old_status in s:
+              s=s.replace(old_status,new_status)
+
+          marker='''        web.setWebViewClient(new WebViewClient(){\n            @Override public void onPageFinished(WebView view,String url){'''
+          replacement='''        web.setWebViewClient(new WebViewClient(){\n            @Override public boolean shouldOverrideUrlLoading(WebView view, String url){\n                return handleSpecialUrl(url);\n            }\n\n            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request){\n                return request != null && handleSpecialUrl(request.getUrl().toString());\n            }\n\n            @Override public void onPageFinished(WebView view,String url){'''
+          if marker in s and 'shouldOverrideUrlLoading(WebView view, String url)' not in s:
+              s=s.replace(marker,replacement)
+
+          old='''                if (url == null) return;\n                String low = url.toLowerCase();\n\n                if (low.startsWith(BASE.toLowerCase()) && !low.contains("login.php")) {'''
+          new='''                if (url == null) return;\n                String low = url.toLowerCase();\n\n                if (logoutPending) {\n                    if (low.contains("login.php")) finishNativeLogout();\n                    return;\n                }\n\n                if (low.startsWith(BASE.toLowerCase()) && !low.contains("login.php")) {'''
+          if old in s:
+              s=s.replace(old,new)
+
+          # Kuatkan CSS mode aplikasi agar sidebar tidak muncul dan halaman generic tidak mepet.
+          s=s.replace('.sims-sidebar,.sims-mobile-menu-btn,.sims-sidebar-overlay{display:none!important;}', '.sims-sidebar,.sims-mobile-menu-btn,.sims-sidebar-overlay{display:none!important;visibility:hidden!important;width:0!important;}')
+          s=s.replace('.wrapper>.content,main.content{width:100%!important;max-width:100%!important;margin-left:0!important;}', 'main.content,.wrapper>.content{width:100%!important;max-width:100%!important;margin-left:0!important;padding-left:0!important;}')
+
+          insert_before='''    private void returnToNativeLogin(){\n'''
+          methods='''    private boolean handleSpecialUrl(String url){\n        if(url == null) return false;\n        if(url.toLowerCase().startsWith("smandaapp://logout")){\n            performNativeLogout();\n            return true;\n        }\n        return false;\n    }\n\n    private void performNativeLogout(){\n        if(logoutPending) return;\n        logoutPending = true;\n        loginPending = false;\n        Toast.makeText(this,"Keluar dari SmandaApp...",Toast.LENGTH_SHORT).show();\n        web.loadUrl(BASE + "modules/smandaapp/index.php?action=logout&native=1&t=" + System.currentTimeMillis());\n        handler.postDelayed(() -> { if(logoutPending) finishNativeLogout(); }, 6000);\n    }\n\n    private void finishNativeLogout(){\n        if(!logoutPending) return;\n        logoutPending = false;\n        loginPending = false;\n        CookieManager cm = CookieManager.getInstance();\n        cm.removeAllCookies(value -> {\n            cm.flush();\n            runOnUiThread(() -> {\n                try { WebStorage.getInstance().deleteAllData(); } catch(Exception ignored) {}\n                try { web.stopLoading(); } catch(Exception ignored) {}\n                try { web.clearHistory(); } catch(Exception ignored) {}\n                try { web.clearCache(true); } catch(Exception ignored) {}\n                try { web.clearFormData(); } catch(Exception ignored) {}\n                username.setText("");\n                password.setText("");\n                progress.setVisibility(View.GONE);\n                loginButton.setEnabled(true);\n                handler.postDelayed(this::recreate, 120);\n            });\n        });\n    }\n\n'''
+          if insert_before in s and 'private void performNativeLogout()' not in s:
+              s=s.replace(insert_before,methods+insert_before)
+
+          bridge_marker='''        @JavascriptInterface public void loginError(final String msg){'''
+          bridge='''        @JavascriptInterface public void logoutNative(){\n            runOnUiThread(() -> performNativeLogout());\n        }\n\n'''
+          if bridge_marker in s and '@JavascriptInterface public void logoutNative()' not in s:
+              s=s.replace(bridge_marker,bridge+bridge_marker)
+          p.write_text(s)
+
+          manifest=Path('app/src/main/AndroidManifest.xml')
+          ms=manifest.read_text()
+          import re
+          ms=re.sub(r'android:icon="[^"]+"','android:icon="@mipmap/ic_launcher"',ms)
+          if 'android:roundIcon=' not in ms:
+              ms=ms.replace('android:icon="@mipmap/ic_launcher"','android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round"')
+          manifest.write_text(ms)
+
+          g=Path('app/build.gradle')
+          gs=g.read_text().replace('versionCode 12','versionCode 16').replace("versionName '1.2.0'","versionName '1.6.0'")
+          g.write_text(gs)
+          PY
+      - run: gradle :app:assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SmandaApp-v1.6.0-safe-statusbar-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
