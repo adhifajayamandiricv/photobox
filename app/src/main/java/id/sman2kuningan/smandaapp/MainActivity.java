@@ -4,11 +4,13 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.graphics.Color;
 import android.graphics.Typeface;
-import android.graphics.BitmapFactory;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
+import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -25,13 +27,14 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.json.JSONObject;
-
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.net.URL;
 
 public class MainActivity extends Activity {
     private static final String BASE = "https://simsmanda.mathpakdadi.my.id/";
+    private static final String LOGIN_URL = BASE + "login.php?app=smandaapp";
+
     private FrameLayout root;
     private WebView web;
     private EditText username, password;
@@ -41,6 +44,8 @@ public class MainActivity extends Activity {
     private final ArrayList<String> yearLabels = new ArrayList<>();
     private final ArrayList<String> yearValues = new ArrayList<>();
     private ArrayAdapter<String> yearAdapter;
+    private boolean loginPending = false;
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
 
@@ -70,7 +75,7 @@ public class MainActivity extends Activity {
         setContentView(root);
         buildLoginUi();
         buildWebView();
-        web.loadUrl(BASE + "login.php?app=smandaapp");
+        web.loadUrl(LOGIN_URL);
     }
 
     private void buildLoginUi() {
@@ -88,36 +93,22 @@ public class MainActivity extends Activity {
 
         ImageView bg = new ImageView(this);
         bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        bg.setImageResource(R.drawable.school_bg);
         hero.addView(bg, new FrameLayout.LayoutParams(-1,-1));
-        new Thread(() -> {
-            try {
-                final android.graphics.Bitmap bm = BitmapFactory.decodeStream(
-                    new URL("https://sman2kuningan.sch.id/wp-content/uploads/2024/12/WhatsApp-Image-2024-12-03-at-10.48.19-1100x525.jpeg").openStream()
-                );
-                runOnUiThread(() -> bg.setImageBitmap(bm));
-            } catch(Exception ignored) {}
-        }).start();
 
         View overlay = new View(this);
         GradientDrawable ov = new GradientDrawable(
             GradientDrawable.Orientation.TOP_BOTTOM,
-            new int[]{0x551354C5,0xDD0E4FC4}
+            new int[]{0x441354C5,0xD90E4FC4}
         );
         overlay.setBackground(ov);
         hero.addView(overlay, new FrameLayout.LayoutParams(-1,-1));
 
         ImageView logo = new ImageView(this);
-        logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        new Thread(() -> {
-            try {
-                final android.graphics.Bitmap bm = BitmapFactory.decodeStream(
-                    new URL("https://sman2kuningan.sch.id/wp-content/themes/mading/images/logo.png").openStream()
-                );
-                runOnUiThread(() -> logo.setImageBitmap(bm));
-            } catch(Exception ignored) {}
-        }).start();
+        logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        logo.setImageResource(R.drawable.smanda_logo);
         logo.setBackground(rounded(Color.WHITE,26,Color.WHITE,3));
-        logo.setPadding(dp(5),dp(5),dp(5),dp(5));
+        logo.setPadding(dp(8),dp(8),dp(8),dp(8));
         FrameLayout.LayoutParams lpLogo = new FrameLayout.LayoutParams(
             dp(118),dp(118),Gravity.CENTER_HORIZONTAL|Gravity.BOTTOM
         );
@@ -238,23 +229,32 @@ public class MainActivity extends Activity {
         wlp.gravity=Gravity.BOTTOM|Gravity.RIGHT;
         root.addView(web,wlp);
 
+        CookieManager cm = CookieManager.getInstance();
+        cm.setAcceptCookie(true);
+        cm.setAcceptThirdPartyCookies(web, true);
+
         WebSettings s=web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
-        s.setUserAgentString(s.getUserAgentString()+" SmandaApp/1.0.0");
+        s.setUserAgentString(s.getUserAgentString()+" SmandaApp/1.1.0 SIM-SMANDA-App");
         web.addJavascriptInterface(new Bridge(),"SmandaNative");
 
         web.setWebViewClient(new WebViewClient(){
             @Override public void onPageFinished(WebView view,String url){
-                if(url.contains("/modules/dashboard_siswa/") || url.contains("dashboard_siswa/index.php")){
+                if (url == null) return;
+                String low = url.toLowerCase();
+
+                if (low.startsWith(BASE.toLowerCase()) && !low.contains("login.php")) {
+                    loginPending = false;
                     showPortal();
                     return;
                 }
-                if(url.contains("login.php") || url.equals(BASE) || url.startsWith(BASE+"?")){
-                    String js="(function(){var s=document.getElementById('tahun_ajaran_id');var a=[];if(s){for(var i=0;i<s.options.length;i++){var o=s.options[i];if(o.value)a.push({v:o.value,t:o.text,sel:o.selected});}}SmandaNative.setYears(JSON.stringify(a));var e=document.querySelector('.error-box');if(e)SmandaNative.loginError(e.innerText);})();";
+
+                if(low.contains("login.php") || low.equals(BASE.toLowerCase()) || low.startsWith((BASE+"?").toLowerCase())){
+                    String js="(function(){var s=document.getElementById('tahun_ajaran_id');var a=[];if(s){for(var i=0;i<s.options.length;i++){var o=s.options[i];if(o.value)a.push({v:o.value,t:o.text,sel:o.selected});}}SmandaNative.setYears(JSON.stringify(a));var e=document.querySelector('.error-box');if(e){SmandaNative.loginError(e.innerText);}else if("+(loginPending?"true":"false")+"){SmandaNative.loginReturnedWithoutError();}})();";
                     view.evaluateJavascript(js,null);
                 }
             }
@@ -269,15 +269,44 @@ public class MainActivity extends Activity {
             Toast.makeText(this,"Lengkapi username, password, dan tahun ajaran.",Toast.LENGTH_SHORT).show();
             return;
         }
+
+        loginPending = true;
         loginButton.setEnabled(false);
         progress.setVisibility(View.VISIBLE);
-        String js="(function(){var u=document.getElementById('username'),p=document.getElementById('password'),y=document.getElementById('tahun_ajaran_id');if(!u||!p||!y){location.href='"+BASE+"login.php?app=smandaapp';return;}u.value="+JSONObject.quote(u)+";p.value="+JSONObject.quote(p)+";y.value="+JSONObject.quote(yearValues.get(pos))+";var f=u.form||document.querySelector('form');if(f)f.submit();})();";
-        web.evaluateJavascript(js,null);
+
+        try {
+            String body = "username=" + URLEncoder.encode(u, "UTF-8")
+                + "&password=" + URLEncoder.encode(p, "UTF-8")
+                + "&tahun_ajaran_id=" + URLEncoder.encode(yearValues.get(pos), "UTF-8");
+            web.postUrl(BASE + "login.php", body.getBytes(StandardCharsets.UTF_8));
+        } catch (Exception e) {
+            loginPending = false;
+            progress.setVisibility(View.GONE);
+            loginButton.setEnabled(true);
+            Toast.makeText(this,"Gagal mengirim login. Silakan coba lagi.",Toast.LENGTH_LONG).show();
+            return;
+        }
+
+        handler.postDelayed(() -> {
+            if (!loginPending) return;
+            String current = web.getUrl();
+            if (current != null && current.startsWith(BASE) && !current.toLowerCase().contains("login.php")) {
+                loginPending = false;
+                showPortal();
+            } else {
+                loginPending = false;
+                progress.setVisibility(View.GONE);
+                loginButton.setEnabled(true);
+                Toast.makeText(MainActivity.this,"Login belum berhasil. Periksa akun, password, atau koneksi internet.",Toast.LENGTH_LONG).show();
+            }
+        }, 18000);
     }
 
     private void showPortal(){
+        loginPending = false;
         progress.setVisibility(View.GONE);
-        root.removeView(web);
+        loginButton.setEnabled(true);
+        try { root.removeView(web); } catch(Exception ignored) {}
         FrameLayout.LayoutParams full=new FrameLayout.LayoutParams(-1,-1);
         root.addView(web,full);
         web.setVisibility(View.VISIBLE);
@@ -301,7 +330,7 @@ public class MainActivity extends Activity {
                     yearAdapter.notifyDataSetChanged();
                     if(!yearLabels.isEmpty()){
                         yearSpinner.setSelection(selected);
-                        loginButton.setEnabled(true);
+                        if (!loginPending) loginButton.setEnabled(true);
                     } else {
                         yearLabels.add("Tahun ajaran tidak ditemukan");
                         yearValues.add("");
@@ -315,10 +344,25 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface public void loginError(final String msg){
             runOnUiThread(() -> {
+                loginPending = false;
                 progress.setVisibility(View.GONE);
                 loginButton.setEnabled(true);
                 if(msg!=null&&!msg.trim().isEmpty())
                     Toast.makeText(MainActivity.this,msg.trim(),Toast.LENGTH_LONG).show();
+            });
+        }
+
+        @JavascriptInterface public void loginReturnedWithoutError(){
+            runOnUiThread(() -> {
+                if (!loginPending) return;
+                handler.postDelayed(() -> {
+                    if (loginPending && web.getUrl()!=null && web.getUrl().toLowerCase().contains("login.php")) {
+                        loginPending = false;
+                        progress.setVisibility(View.GONE);
+                        loginButton.setEnabled(true);
+                        Toast.makeText(MainActivity.this,"Login tidak berpindah ke dashboard. Silakan coba lagi.",Toast.LENGTH_LONG).show();
+                    }
+                }, 2500);
             });
         }
     }
