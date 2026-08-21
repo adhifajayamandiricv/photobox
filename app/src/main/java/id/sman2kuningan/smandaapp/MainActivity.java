@@ -255,7 +255,7 @@ public class MainActivity extends Activity {
         s.setDatabaseEnabled(true);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
-        s.setUserAgentString(s.getUserAgentString()+" SmandaApp/1.1.0 SIM-SMANDA-App");
+        s.setUserAgentString(s.getUserAgentString()+" SmandaApp/1.2.0 SIM-SMANDA-App");
         web.addJavascriptInterface(new Bridge(),"SmandaNative");
 
         web.setWebViewClient(new WebViewClient(){
@@ -265,11 +265,16 @@ public class MainActivity extends Activity {
 
                 if (low.startsWith(BASE.toLowerCase()) && !low.contains("login.php")) {
                     loginPending = false;
+                    injectAppMode(view);
                     showPortal();
                     return;
                 }
 
                 if(low.contains("login.php") || low.equals(BASE.toLowerCase()) || low.startsWith((BASE+"?").toLowerCase())){
+                    if (web.getVisibility() == View.VISIBLE && !loginPending) {
+                        returnToNativeLogin();
+                        return;
+                    }
                     String js="(function(){var s=document.getElementById('tahun_ajaran_id');var a=[];if(s){for(var i=0;i<s.options.length;i++){var o=s.options[i];if(o.value)a.push({v:o.value,t:o.text,sel:o.selected});}}SmandaNative.setYears(JSON.stringify(a));var e=document.querySelector('.error-box');if(e){SmandaNative.loginError(e.innerText);}else if("+(loginPending?"true":"false")+"){SmandaNative.loginReturnedWithoutError();}})();";
                     view.evaluateJavascript(js,null);
                 }
@@ -318,6 +323,30 @@ public class MainActivity extends Activity {
         }, 18000);
     }
 
+    private void injectAppMode(WebView view){
+        String js="(function(){"
+            +"var id='smandaapp-native-style';var st=document.getElementById(id);"
+            +"if(!st){st=document.createElement('style');st.id=id;st.innerHTML='"
+            +".sims-sidebar,.sims-mobile-menu-btn,.sims-sidebar-overlay{display:none!important;}"
+            +".wrapper{display:block!important;width:100%!important;max-width:100%!important;}"
+            +".wrapper>.content,main.content{width:100%!important;max-width:100%!important;margin-left:0!important;}"
+            +"body{overflow-x:hidden!important;}';document.head.appendChild(st);}"
+            +"var sb=document.querySelector('.sims-sidebar');if(sb)sb.classList.remove('mobile-open');"
+            +"var ov=document.querySelector('.sims-sidebar-overlay');if(ov)ov.classList.remove('mobile-open');"
+            +"var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}"
+            +"m.content='width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover';"
+            +"})();";
+        view.evaluateJavascript(js,null);
+    }
+
+    private void returnToNativeLogin(){
+        loginPending = false;
+        progress.setVisibility(View.GONE);
+        loginButton.setEnabled(true);
+        web.setVisibility(View.INVISIBLE);
+        handler.postDelayed(this::recreate, 120);
+    }
+
     private void showPortal(){
         loginPending = false;
         progress.setVisibility(View.GONE);
@@ -326,7 +355,7 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams full=new FrameLayout.LayoutParams(-1,-1);
         root.addView(web,full);
         web.setVisibility(View.VISIBLE);
-        web.evaluateJavascript("(function(){var m=document.querySelector('meta[name=viewport]');if(!m){m=document.createElement('meta');m.name='viewport';document.head.appendChild(m);}m.content='width=device-width,initial-scale=1,maximum-scale=1';})();",null);
+        injectAppMode(web);
     }
 
     public class Bridge {
