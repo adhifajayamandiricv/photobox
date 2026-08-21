@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -28,6 +29,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.net.URLEncoder;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
@@ -93,8 +95,15 @@ public class MainActivity extends Activity {
 
         ImageView bg = new ImageView(this);
         bg.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        bg.setImageResource(R.drawable.school_bg);
         hero.addView(bg, new FrameLayout.LayoutParams(-1,-1));
+        new Thread(() -> {
+            try {
+                final android.graphics.Bitmap bm = BitmapFactory.decodeStream(
+                    new URL("https://sman2kuningan.sch.id/wp-content/uploads/2024/12/WhatsApp-Image-2024-12-03-at-10.48.19-1100x525.jpeg").openStream()
+                );
+                runOnUiThread(() -> bg.setImageBitmap(bm));
+            } catch(Exception ignored) {}
+        }).start();
 
         View overlay = new View(this);
         GradientDrawable ov = new GradientDrawable(
@@ -105,8 +114,15 @@ public class MainActivity extends Activity {
         hero.addView(overlay, new FrameLayout.LayoutParams(-1,-1));
 
         ImageView logo = new ImageView(this);
-        logo.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        logo.setImageResource(R.drawable.smanda_logo);
+        logo.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        new Thread(() -> {
+            try {
+                final android.graphics.Bitmap bm = BitmapFactory.decodeStream(
+                    new URL("https://sman2kuningan.sch.id/wp-content/themes/mading/images/logo.png").openStream()
+                );
+                runOnUiThread(() -> logo.setImageBitmap(bm));
+            } catch(Exception ignored) {}
+        }).start();
         logo.setBackground(rounded(Color.WHITE,26,Color.WHITE,3));
         logo.setPadding(dp(8),dp(8),dp(8),dp(8));
         FrameLayout.LayoutParams lpLogo = new FrameLayout.LayoutParams(
