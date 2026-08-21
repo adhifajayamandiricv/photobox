@@ -1,0 +1,51 @@
+name: Build SmandaApp v1.3
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-smandaapp-v13:
+    if: github.head_ref == 'smandaapp-clean-build'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Apply v1.3 logout/sidebar patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('app/src/main/java/id/sman2kuningan/smandaapp/MainActivity.java')
+          s=p.read_text()
+          s=s.replace('import android.webkit.WebViewClient;','import android.webkit.WebViewClient;\nimport android.webkit.WebStorage;')
+          s=s.replace('private boolean loginPending = false;','private boolean loginPending = false;\n    private boolean logoutPending = false;')
+          s=s.replace('SmandaApp/1.2.0 SIM-SMANDA-App','SmandaApp/1.3.0 SIM-SMANDA-App')
+          s=s.replace('String low = url.toLowerCase();\n\n                if (low.startsWith(BASE.toLowerCase())', 'String low = url.toLowerCase();\n\n                if (logoutPending && low.contains("login.php")) {\n                    finishNativeLogout();\n                    return;\n                }\n\n                if (low.startsWith(BASE.toLowerCase())')
+          s=s.replace('web.getVisibility() == View.VISIBLE && !loginPending)', 'web.getVisibility() == View.VISIBLE && !loginPending && !logoutPending)')
+          s=s.replace('.sims-sidebar,.sims-mobile-menu-btn,.sims-sidebar-overlay{display:none!important;}', '.sims-sidebar,.sims-mobile-menu-btn,.sims-sidebar-overlay{display:none!important;visibility:hidden!important;width:0!important;}')
+          s=s.replace('.wrapper>.content,main.content{width:100%!important;max-width:100%!important;margin-left:0!important;}', 'main.content,.wrapper>.content{width:100%!important;max-width:100%!important;margin-left:0!important;padding-left:0!important;}')
+          s=s.replace('var sb=document.querySelector(\'.sims-sidebar\');if(sb)sb.classList.remove(\'mobile-open\');\n            +"var ov=document.querySelector(\'.sims-sidebar-overlay\');if(ov)ov.classList.remove(\'mobile-open\');"', 'document.querySelectorAll(\'.sims-sidebar,.sims-mobile-menu-btn,.sims-sidebar-overlay\').forEach(function(el){el.style.display=\'none\';el.classList.remove(\'mobile-open\');});\n            +"var w=document.querySelector(\'.wrapper\');if(w){w.style.display=\'block\';w.style.width=\'100%\';w.style.maxWidth=\'100%\';}"\n            +"var c=document.querySelector(\'main.content,.wrapper>.content\');if(c){c.style.width=\'100%\';c.style.maxWidth=\'100%\';c.style.marginLeft=\'0\';c.style.paddingLeft=\'0\';}"')
+          marker='    private void showPortal(){\n'
+          methods='''    private void finishNativeLogout(){\n        if (!logoutPending) return;\n        logoutPending = false;\n        loginPending = false;\n        CookieManager cm = CookieManager.getInstance();\n        cm.removeAllCookies(value -> {\n            cm.flush();\n            runOnUiThread(() -> {\n                try { WebStorage.getInstance().deleteAllData(); } catch(Exception ignored) {}\n                try { web.clearHistory(); } catch(Exception ignored) {}\n                try { web.clearCache(true); } catch(Exception ignored) {}\n                username.setText(\"\");\n                password.setText(\"\");\n                progress.setVisibility(View.GONE);\n                loginButton.setEnabled(true);\n                web.setVisibility(View.INVISIBLE);\n                handler.postDelayed(this::recreate, 150);\n            });\n        });\n    }\n\n'''
+          s=s.replace(marker, methods+marker)
+          bridge='''        @JavascriptInterface public void logoutNative(){\n            runOnUiThread(() -> {\n                if (logoutPending) return;\n                logoutPending = true;\n                loginPending = false;\n                Toast.makeText(MainActivity.this,\"Keluar dari SmandaApp...\",Toast.LENGTH_SHORT).show();\n                web.loadUrl(BASE + \"logout.php?app=smandaapp&native=1\");\n                handler.postDelayed(() -> { if (logoutPending) finishNativeLogout(); }, 10000);\n            });\n        }\n\n'''
+          s=s.replace('        @JavascriptInterface public void loginError(final String msg){', bridge+'        @JavascriptInterface public void loginError(final String msg){')
+          p.write_text(s)
+          g=Path('app/build.gradle')
+          gs=g.read_text().replace("versionCode 12","versionCode 13").replace("versionName '1.2.0'","versionName '1.3.0'")
+          g.write_text(gs)
+          PY
+      - run: gradle :app:assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SmandaApp-v1.3.0-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
