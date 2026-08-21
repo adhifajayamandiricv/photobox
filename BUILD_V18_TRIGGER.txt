@@ -1,0 +1,1 @@
+Build SmandaApp v1.8 with exact official SMAN 2 Kuningan logo as direct launcher icon.
