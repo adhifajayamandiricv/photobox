@@ -1,0 +1,14 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'id.sman2kuningan.smandaapp'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'id.sman2kuningan.smandaapp'
+        minSdk 23
+        targetSdk 35
+        versionCode 12
+        versionName '1.2.0'
+    }
+}
