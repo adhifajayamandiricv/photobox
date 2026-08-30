@@ -1,7 +1,9 @@
 name: Build SmandaApp v1.9.1 new icon
+
 on:
   push:
-    branches: [smandaapp-clean-build]
+    branches:
+      - smandaapp-clean-build
   workflow_dispatch:
 
 jobs:
@@ -9,153 +11,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
       - uses: android-actions/setup-android@v3
+
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: Apply SmandaApp v1.9.1 native fixes, server, and icon
-        shell: bash
-        run: |
-          set -e
-          python - <<'PY'
-          from pathlib import Path
-          import re
+      - name: Prepare SmandaApp v1.9.1
+        run: python scripts/prepare_smandaapp_v191.py
 
-          p=Path('app/src/main/java/id/sman2kuningan/smandaapp/MainActivity.java')
-          s=p.read_text()
-
-          # Server aktif.
-          s=s.replace('https://simsmanda.mathpakdadi.my.id/','https://sim.sman2kuningan.my.id/')
-
-          # Native safe-area/status-bar + logout fix dari v1.9.
-          if 'import android.os.Build;' not in s:
-              s=s.replace('import android.os.Bundle;', 'import android.os.Bundle;\nimport android.os.Build;')
-          if 'import android.webkit.WebResourceRequest;' not in s:
-              s=s.replace('import android.webkit.WebViewClient;', 'import android.webkit.WebViewClient;\nimport android.webkit.WebResourceRequest;\nimport android.webkit.WebStorage;')
-          if 'private boolean logoutPending = false;' not in s:
-              s=s.replace('private boolean loginPending = false;', 'private boolean loginPending = false;\n    private boolean logoutPending = false;')
-
-          s=s.replace('SmandaApp/1.2.0 SIM-SMANDA-App','SmandaApp/1.9.1 SIM-SMANDA-App')
-          s=s.replace('Dibuat dan dikembangkan oleh Dadi Hardadi dan OSIS SMANDA','Dibuat dan dikembangkan oleh Dadi Hardadi & OSIS SMANDA')
-
-          old='''        getWindow().setStatusBarColor(Color.rgb(20, 83, 202));
-        getWindow().setNavigationBarColor(Color.WHITE);
-        root = new FrameLayout(this);
-        setContentView(root);'''
-          new='''        getWindow().setStatusBarColor(Color.WHITE);
-        getWindow().setNavigationBarColor(Color.WHITE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
-        }
-        root = new FrameLayout(this);
-        setContentView(root);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            root.setOnApplyWindowInsetsListener((v, insets) -> {
-                int topInset = insets.getSystemWindowInsetTop();
-                v.setPadding(0, topInset, 0, 0);
-                return insets;
-            });
-            root.requestApplyInsets();
-        }'''
-          if old in s:
-              s=s.replace(old,new)
-
-          marker='''        web.setWebViewClient(new WebViewClient(){
-            @Override public void onPageFinished(WebView view,String url){'''
-          replacement='''        web.setWebViewClient(new WebViewClient(){
-            @Override public boolean shouldOverrideUrlLoading(WebView view, String url){
-                return handleSpecialUrl(url);
-            }
-            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request){
-                return request != null && handleSpecialUrl(request.getUrl().toString());
-            }
-            @Override public void onPageFinished(WebView view,String url){'''
-          if marker in s and 'shouldOverrideUrlLoading(WebView view, String url)' not in s:
-              s=s.replace(marker,replacement)
-
-          old2='''                if (url == null) return;
-                String low = url.toLowerCase();
-
-                if (low.startsWith(BASE.toLowerCase()) && !low.contains("login.php")) {'''
-          new2='''                if (url == null) return;
-                String low = url.toLowerCase();
-                if (logoutPending) {
-                    if (low.contains("login.php")) finishNativeLogout();
-                    return;
-                }
-                if (low.startsWith(BASE.toLowerCase()) && !low.contains("login.php")) {'''
-          if old2 in s:
-              s=s.replace(old2,new2)
-
-          insert='''    private void returnToNativeLogin(){
-'''
-          methods='''    private boolean handleSpecialUrl(String url){
-        if(url == null) return false;
-        if(url.toLowerCase().startsWith("smandaapp://logout")){
-            performNativeLogout();
-            return true;
-        }
-        return false;
-    }
-
-    private void performNativeLogout(){
-        if(logoutPending) return;
-        logoutPending = true;
-        loginPending = false;
-        web.loadUrl(BASE + "modules/smandaapp/index.php?action=logout&native=1&t=" + System.currentTimeMillis());
-        handler.postDelayed(() -> { if(logoutPending) finishNativeLogout(); }, 6000);
-    }
-
-    private void finishNativeLogout(){
-        if(!logoutPending) return;
-        logoutPending = false;
-        loginPending = false;
-        CookieManager cm = CookieManager.getInstance();
-        cm.removeAllCookies(value -> {
-            cm.flush();
-            runOnUiThread(() -> {
-                try { WebStorage.getInstance().deleteAllData(); } catch(Exception ignored) {}
-                try { web.stopLoading(); } catch(Exception ignored) {}
-                try { web.clearHistory(); } catch(Exception ignored) {}
-                try { web.clearCache(true); } catch(Exception ignored) {}
-                try { web.clearFormData(); } catch(Exception ignored) {}
-                username.setText("");
-                password.setText("");
-                handler.postDelayed(this::recreate, 120);
-            });
-        });
-    }
-
-'''
-          if insert in s and 'private void performNativeLogout()' not in s:
-              s=s.replace(insert,methods+insert)
-
-          bridge='''        @JavascriptInterface public void loginError(final String msg){'''
-          if bridge in s and '@JavascriptInterface public void logoutNative()' not in s:
-              s=s.replace(bridge,'        @JavascriptInterface public void logoutNative(){ runOnUiThread(() -> performNativeLogout()); }\n\n'+bridge)
-
-          p.write_text(s)
-
-          # Launcher icon baru dibuat dari drawable/vector yang sudah diperbarui.
-          manifest=Path('app/src/main/AndroidManifest.xml')
-          ms=manifest.read_text()
-          ms=re.sub(r'android:icon="[^"]+"','android:icon="@drawable/app_icon"',ms)
-          ms=re.sub(r'\s+android:roundIcon="[^"]+"',' android:roundIcon="@drawable/app_icon"',ms)
-          if 'android:roundIcon=' not in ms:
-              ms=ms.replace('android:icon="@drawable/app_icon"','android:icon="@drawable/app_icon" android:roundIcon="@drawable/app_icon"')
-          manifest.write_text(ms)
-
-          g=Path('app/build.gradle')
-          gs=g.read_text().replace('versionCode 12','versionCode 20').replace("versionName '1.2.0'","versionName '1.9.1'")
-          g.write_text(gs)
-          PY
-
-      - run: gradle :app:assembleDebug --stacktrace
+      - name: Build APK
+        run: gradle :app:assembleDebug --stacktrace
 
       - uses: actions/upload-artifact@v4
         with:
