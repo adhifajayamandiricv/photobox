@@ -19,6 +19,7 @@ import android.view.Window;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.webkit.WebChromeClient;
 import android.widget.Toast;
 
 import org.json.JSONArray;
@@ -53,6 +54,7 @@ public class MainActivity extends Activity {
         webView.getSettings().setAllowFileAccess(true);
         webView.getSettings().setTextZoom(100);
         webView.setWebViewClient(new WebViewClient());
+        webView.setWebChromeClient(new WebChromeClient());
         webView.addJavascriptInterface(new AndroidBridge(this), "Android");
         setContentView(webView);
         webView.loadUrl("file:///android_asset/index.html");
