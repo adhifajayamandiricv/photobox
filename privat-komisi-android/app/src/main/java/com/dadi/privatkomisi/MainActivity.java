@@ -5,6 +5,8 @@ import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Context;
+import android.content.Intent;
+import android.content.ActivityNotFoundException;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -22,10 +24,13 @@ import android.webkit.WebViewClient;
 import android.webkit.WebChromeClient;
 import android.widget.Toast;
 
+import androidx.core.content.FileProvider;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.File;
+import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -90,7 +95,7 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void saveInvoicePdf(String fileName, String recipient, String period, String ownerName, String recapTitle, String rowsJson, String totalText) {
+        public void saveInvoicePdf(String fileName, String recipient, String period, String ownerName, String recapTitle, String rowsJson, String totalText, boolean shareAfter, String shareMessage) {
             PdfDocument doc = new PdfDocument();
             try {
                 JSONArray rows = new JSONArray(rowsJson);
@@ -442,16 +447,69 @@ public class MainActivity extends Activity {
                     }
                 }
 
+                ByteArrayOutputStream pdfBuffer = new ByteArrayOutputStream();
+                doc.writeTo(pdfBuffer);
+                byte[] pdfBytes = pdfBuffer.toByteArray();
+                pdfBuffer.close();
+
                 OutputStream out = openDownload(fileName, "application/pdf");
-                doc.writeTo(out);
+                out.write(pdfBytes);
                 out.flush();
                 out.close();
-                toast("PDF tagihan tersimpan di folder Download/PrivatKomisi");
+
+                if (shareAfter) {
+                    sharePdfToWhatsApp(fileName, pdfBytes, shareMessage);
+                    toast("PDF dibuat dan WhatsApp dibuka untuk pengiriman");
+                } else {
+                    toast("PDF tagihan tersimpan di folder Download/PrivatKomisi");
+                }
             } catch (Exception e) {
                 toast("Gagal menyimpan PDF: " + e.getMessage());
             } finally {
                 doc.close();
             }
+        }
+
+        private void sharePdfToWhatsApp(String fileName, byte[] pdfBytes, String message) throws Exception {
+            File dir = new File(context.getCacheDir(), "shared_pdfs");
+            if (!dir.exists() && !dir.mkdirs()) throw new Exception("Folder berbagi tidak dapat dibuat");
+            String safeName = fileName.replaceAll("[\\/:*?\"<>|]", "_");
+            File pdfFile = new File(dir, safeName);
+            FileOutputStream fos = new FileOutputStream(pdfFile);
+            fos.write(pdfBytes);
+            fos.flush();
+            fos.close();
+
+            Uri uri = FileProvider.getUriForFile(
+                    context,
+                    context.getPackageName() + ".fileprovider",
+                    pdfFile
+            );
+
+            activity.runOnUiThread(() -> {
+                Intent send = new Intent(Intent.ACTION_SEND);
+                send.setType("application/pdf");
+                send.putExtra(Intent.EXTRA_STREAM, uri);
+                if (message != null && !message.trim().isEmpty()) {
+                    send.putExtra(Intent.EXTRA_TEXT, message.trim());
+                }
+                send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                try {
+                    send.setPackage("com.whatsapp");
+                    activity.startActivity(send);
+                } catch (ActivityNotFoundException e) {
+                    try {
+                        send.setPackage("com.whatsapp.w4b");
+                        activity.startActivity(send);
+                    } catch (ActivityNotFoundException e2) {
+                        send.setPackage(null);
+                        activity.startActivity(Intent.createChooser(send, "Kirim tagihan PDF"));
+                    }
+                } catch (Exception e) {
+                    toast("Gagal membuka WhatsApp: " + e.getMessage());
+                }
+            });
         }
 
         private void drawCell(Canvas c, Paint p, String text, float x, float y, float maxWidth) {
