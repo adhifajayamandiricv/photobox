@@ -321,14 +321,53 @@ public class MainActivity extends Activity {
                             y += 12;
                         }
 
-                        y += 4;
+                        // Rekap transfer selalu dibuat pada halaman khusus agar tidak terpotong.
+                        doc.finishPage(page);
+                        pageNo++;
+                        PdfDocument.PageInfo transferInfo = new PdfDocument.PageInfo.Builder(width, height, pageNo).create();
+                        page = doc.startPage(transferInfo);
+                        canvas = page.getCanvas();
+                        canvas.drawColor(Color.WHITE);
+                        y = 46;
+
                         p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-                        p.setTextSize(12f);
+                        p.setTextSize(16f);
                         p.setColor(Color.rgb(11, 37, 69));
                         canvas.drawText("REKAP TRANSFER", left, y, p);
-                        y += 19;
+                        y += 20;
+
+                        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
+                        p.setTextSize(9.5f);
+                        p.setColor(Color.rgb(74,91,112));
+                        if (recipient != null && !recipient.trim().isEmpty()) {
+                            drawCell(canvas, p, "Kepada: " + recipient.trim(), left, y, 520);
+                            y += 14;
+                        }
+                        drawCell(canvas, p, "Periode: " + period, left, y, 520);
+                        y += 17;
+                        p.setColor(Color.rgb(25,185,172));
+                        canvas.drawRect(left, y, right, y + 3, p);
+                        y += 20;
 
                         for (Map.Entry<String, Double> e : transferAmount.entrySet()) {
+                            if (y > 475) {
+                                doc.finishPage(page);
+                                pageNo++;
+                                PdfDocument.PageInfo nextTransferInfo = new PdfDocument.PageInfo.Builder(width, height, pageNo).create();
+                                page = doc.startPage(nextTransferInfo);
+                                canvas = page.getCanvas();
+                                canvas.drawColor(Color.WHITE);
+                                y = 46;
+                                p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                                p.setTextSize(14f);
+                                p.setColor(Color.rgb(11,37,69));
+                                canvas.drawText("REKAP TRANSFER (LANJUTAN)", left, y, p);
+                                y += 20;
+                                p.setColor(Color.rgb(25,185,172));
+                                canvas.drawRect(left, y, right, y + 3, p);
+                                y += 20;
+                            }
+
                             String[] bank = transferBank.get(e.getKey());
                             String bankName = bank != null ? bank[0] : "";
                             String holder = bank != null ? bank[1] : "";
@@ -337,20 +376,20 @@ public class MainActivity extends Activity {
                             String teachers = names == null ? "" : android.text.TextUtils.join(", ", names);
 
                             p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-                            p.setTextSize(10.5f);
+                            p.setTextSize(11f);
                             p.setColor(Color.rgb(19,32,51));
                             String transferTitle = bankName.trim().isEmpty()
                                     ? "Rekening belum lengkap"
                                     : "Transfer ke " + bankName.trim();
-                            drawCell(canvas, p, transferTitle, left, y, 370);
-                            drawCellRight(canvas, p, rupiah(e.getValue()), right, y, 190);
-                            y += 15;
+                            drawCell(canvas, p, transferTitle, left, y, 360);
+                            drawCellRight(canvas, p, rupiah(e.getValue()), right, y, 200);
+                            y += 16;
 
                             p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
                             p.setTextSize(9.5f);
                             p.setColor(Color.rgb(74,91,112));
                             if (!holder.trim().isEmpty()) {
-                                drawCell(canvas, p, "a.n. " + holder.trim(), left, y, 400);
+                                drawCell(canvas, p, "a.n. " + holder.trim(), left, y, 440);
                                 y += 14;
                             }
                             if (!account.trim().isEmpty()) {
@@ -363,29 +402,38 @@ public class MainActivity extends Activity {
                             }
                             if (!teachers.trim().isEmpty()) {
                                 p.setColor(Color.rgb(90,103,120));
-                                drawCell(canvas, p, "Untuk: " + teachers, left, y, 650);
+                                drawCell(canvas, p, "Untuk: " + teachers, left, y, 700);
                                 y += 14;
                             }
 
                             p.setColor(Color.rgb(226,232,240));
                             canvas.drawLine(left, y + 2, right, y + 2, p);
-                            y += 12;
+                            y += 13;
                         }
 
-                        y += 3;
+                        if (y > 515) {
+                            doc.finishPage(page);
+                            pageNo++;
+                            PdfDocument.PageInfo totalInfo = new PdfDocument.PageInfo.Builder(width, height, pageNo).create();
+                            page = doc.startPage(totalInfo);
+                            canvas = page.getCanvas();
+                            canvas.drawColor(Color.WHITE);
+                            y = 60;
+                        }
+
                         p.setColor(Color.rgb(11, 37, 69));
                         canvas.drawRect(left, y, right, y + 2, p);
-                        y += 21;
+                        y += 22;
                         p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
                         p.setTextSize(12.5f);
                         canvas.drawText("GRAND TOTAL TAGIHAN", 555, y, p);
                         drawCellRight(canvas, p, totalText, right, y, 165);
-                        y += 21;
+                        y += 22;
 
                         p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
                         p.setTextSize(8.5f);
                         p.setColor(Color.rgb(107,119,140));
-                        canvas.drawText("Rekap di atas berdasarkan siswa dan pengajar yang dipilih pada tagihan.", left, Math.min(y + 6, 565), p);
+                        canvas.drawText("Rekap transfer sudah digabung otomatis untuk bank dan nomor rekening yang sama.", left, Math.min(y + 6, 565), p);
                         doc.finishPage(page);
                         break;
                     } else {
