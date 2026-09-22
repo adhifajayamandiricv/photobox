@@ -87,7 +87,7 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void saveInvoicePdf(String fileName, String recipient, String period, String ownerName, String rowsJson, String totalText) {
+        public void saveInvoicePdf(String fileName, String recipient, String period, String ownerName, String recapTitle, String rowsJson, String totalText) {
             PdfDocument doc = new PdfDocument();
             try {
                 JSONArray rows = new JSONArray(rowsJson);
@@ -100,6 +100,7 @@ public class MainActivity extends Activity {
 
                 TreeMap<String, double[]> byStudent = new TreeMap<>();
                 TreeMap<String, double[]> byTeacher = new TreeMap<>();
+                TreeMap<String, String[]> teacherBank = new TreeMap<>();
                 for (int i = 0; i < rows.length(); i++) {
                     JSONObject r = rows.getJSONObject(i);
                     String studentName = r.optString("student", "-");
@@ -109,6 +110,13 @@ public class MainActivity extends Activity {
                     ss[0] += 1; ss[1] += fee; byStudent.put(studentName, ss);
                     double[] tt = byTeacher.containsKey(teacherName) ? byTeacher.get(teacherName) : new double[]{0, 0};
                     tt[0] += 1; tt[1] += fee; byTeacher.put(teacherName, tt);
+                    if (!teacherBank.containsKey(teacherName)) {
+                        teacherBank.put(teacherName, new String[]{
+                            r.optString("teacherBank", ""),
+                            r.optString("teacherAccountHolder", teacherName),
+                            r.optString("teacherAccountNumber", "")
+                        });
+                    }
                 }
 
                 Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -184,7 +192,7 @@ public class MainActivity extends Activity {
                     }
 
                     if (rowIndex >= rows.length()) {
-                        int recapNeeded = 115 + (byStudent.size() + byTeacher.size()) * 18;
+                        int recapNeeded = 135 + byStudent.size() * 18 + byTeacher.size() * 62;
                         if (y + recapNeeded > 560) {
                             doc.finishPage(page);
                             pageNo++;
@@ -240,28 +248,57 @@ public class MainActivity extends Activity {
                             y += 18;
                         }
 
-                        y += 8;
+                        y += 10;
                         p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-                        p.setTextSize(11.5f);
+                        p.setTextSize(12f);
                         p.setColor(Color.rgb(11, 37, 69));
-                        canvas.drawText("REKAP PER PENGAJAR", left, y, p);
-                        y += 17;
-                        p.setTextSize(9.5f);
+                        String recapHeading = (recapTitle == null || recapTitle.trim().isEmpty())
+                                ? "Rekapitulasi Pertemuan Les"
+                                : recapTitle.trim();
+                        drawCell(canvas, p, recapHeading, left, y, right - left);
+                        y += 20;
+
                         for (Map.Entry<String, double[]> e : byTeacher.entrySet()) {
                             double[] v = e.getValue();
+                            String[] bank = teacherBank.get(e.getKey());
+                            String bankName = bank != null ? bank[0] : "";
+                            String holder = bank != null ? bank[1] : e.getKey();
+                            String account = bank != null ? bank[2] : "";
+
                             p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                            p.setTextSize(10.5f);
                             p.setColor(Color.rgb(19,32,51));
-                            drawCell(canvas, p, e.getKey(), left, y, 360);
+                            drawCell(canvas, p, e.getKey(), left, y, 500);
+                            y += 15;
+
                             p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
-                            p.setColor(Color.rgb(90,103,120));
-                            canvas.drawText(((int)v[0]) + " pertemuan", 430, y, p);
-                            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
-                            p.setColor(Color.rgb(19,32,51));
-                            drawCellRight(canvas, p, rupiah(v[1]), right, y, 165);
-                            y += 18;
+                            p.setTextSize(9.5f);
+                            p.setColor(Color.rgb(74,91,112));
+                            canvas.drawText(((int)v[0]) + " pertemuan", left, y, p);
+                            y += 14;
+
+                            if (!bankName.trim().isEmpty()) {
+                                String bankLine = "Rek. " + bankName.trim() + " an. " +
+                                        (holder.trim().isEmpty() ? e.getKey() : holder.trim());
+                                drawCell(canvas, p, bankLine, left, y, 550);
+                                y += 14;
+                            }
+                            if (!account.trim().isEmpty()) {
+                                canvas.drawText("Norek. " + account.trim(), left, y, p);
+                                y += 14;
+                            }
+                            if (bankName.trim().isEmpty() && account.trim().isEmpty()) {
+                                p.setColor(Color.rgb(160,95,30));
+                                canvas.drawText("Data rekening belum diisi", left, y, p);
+                                y += 14;
+                            }
+
+                            p.setColor(Color.rgb(226,232,240));
+                            canvas.drawLine(left, y + 2, right, y + 2, p);
+                            y += 12;
                         }
 
-                        y += 9;
+                        y += 3;
                         p.setColor(Color.rgb(11, 37, 69));
                         canvas.drawRect(left, y, right, y + 2, p);
                         y += 21;
