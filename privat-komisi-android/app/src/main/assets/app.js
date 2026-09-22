@@ -45,12 +45,51 @@ function billSelectionChanged(){syncRecipient();renderBillPreviewOnly()}
 function syncRecipient(){const ids=[...document.querySelectorAll('.billStudent:checked')].map(x=>x.value);if(!ids.length)return;const names=[...new Set(ids.map(id=>student(id).billingName).filter(Boolean))];if(names.length===1&&!$('billRecipient').value.trim())$('billRecipient').value=names[0]}
 function billRows(){const from=$('billFrom').value,to=$('billTo').value,sids=new Set([...document.querySelectorAll('.billStudent:checked')].map(x=>x.value)),tkeys=new Set([...document.querySelectorAll('.billTeacher:checked')].map(x=>x.value));return data.meetings.filter(m=>m.date>=from&&m.date<=to&&sids.has(m.studentId)&&(m.mode==='self'?tkeys.has('self'):tkeys.has('teacher:'+m.teacherId))).sort((a,b)=>a.date.localeCompare(b.date)||student(a.studentId).name.localeCompare(student(b.studentId).name))}
 function renderBill(){renderBillSelectors();renderBillPreviewOnly()}
-function renderBillPreviewOnly(){if(!$('billPreview'))return;const rows=billRows(),total=rows.reduce((a,m)=>a+(Number(m.studentFee)||0),0);$('billCount').textContent=rows.length+' pertemuan';if(!rows.length){$('billPreview').innerHTML='<div class="empty">Belum ada pertemuan sesuai siswa, pengajar, dan periode yang dipilih.</div>';return}$('billPreview').innerHTML=`<div class="tablewrap"><table class="billtable"><thead><tr><th>No</th><th>Tanggal</th><th>Siswa</th><th>Pengajar</th><th>Tagihan</th></tr></thead><tbody>${rows.map((m,i)=>`<tr><td>${i+1}</td><td>${fmtDate(m.date)}</td><td>${esc(student(m.studentId).name)}</td><td>${esc(m.mode==='self'?'Saya sendiri':teacher(m.teacherId).name)}</td><td>${rupiah(m.studentFee)}</td></tr>`).join('')}</tbody></table></div><div class="billtotal"><span>Total tagihan</span><b>${rupiah(total)}</b></div>`}
+function renderBillPreviewOnly(){
+  if(!$('billPreview'))return;
+  const rows=billRows(),total=rows.reduce((a,m)=>a+(Number(m.studentFee)||0),0);
+  $('billCount').textContent=rows.length+' pertemuan';
+  if(!rows.length){
+    $('billPreview').innerHTML='<div class="empty">Belum ada pertemuan sesuai siswa, pengajar, dan periode yang dipilih.</div>';
+    return;
+  }
+  const sm={},tm={};
+  rows.forEach(m=>{
+    const sn=student(m.studentId).name,tn=m.mode==='self'?'Saya sendiri':teacher(m.teacherId).name,fee=Number(m.studentFee)||0;
+    sm[sn]??={count:0,total:0};sm[sn].count++;sm[sn].total+=fee;
+    tm[tn]??={count:0,total:0};tm[tn].count++;tm[tn].total+=fee;
+  });
+  const studentRecap=Object.entries(sm).sort((a,b)=>a[0].localeCompare(b[0])).map(([n,x])=>`<div class="summaryline"><span><b>${esc(n)}</b><br><small>${x.count} pertemuan</small></span><b>${rupiah(x.total)}</b></div>`).join('');
+  const teacherRecap=Object.entries(tm).sort((a,b)=>a[0].localeCompare(b[0])).map(([n,x])=>`<div class="summaryline"><span><b>${esc(n)}</b><br><small>${x.count} pertemuan</small></span><b>${rupiah(x.total)}</b></div>`).join('');
+  $('billPreview').innerHTML=`<div class="tablewrap"><table class="billtable"><thead><tr><th>No</th><th>Tanggal</th><th>Siswa</th><th>Pengajar</th><th>Tagihan</th></tr></thead><tbody>${rows.map((m,i)=>`<tr><td>${i+1}</td><td>${fmtDate(m.date)}</td><td>${esc(student(m.studentId).name)}</td><td>${esc(m.mode==='self'?'Saya sendiri':teacher(m.teacherId).name)}</td><td>${rupiah(m.studentFee)}</td></tr>`).join('')}</tbody></table></div>
+  <div class="card" style="margin-top:10px;box-shadow:none">
+    <div class="section" style="margin:0 0 5px"><h2 style="font-size:12px">Rekap per siswa</h2><span class="pill">${Object.keys(sm).length} siswa</span></div>
+    ${studentRecap}
+    <div class="section" style="margin:15px 0 5px"><h2 style="font-size:12px">Rekap per pengajar</h2><span class="pill">${Object.keys(tm).length} pengajar</span></div>
+    ${teacherRecap}
+    <div class="billtotal" style="border-top:2px solid var(--navy2);margin-top:10px"><span>Grand total tagihan</span><b>${rupiah(total)}</b></div>
+  </div>`;
+}
 function billPayload(){const rows=billRows();return {rows:rows.map((m,i)=>({no:i+1,date:fmtDate(m.date),student:student(m.studentId).name,teacher:m.mode==='self'?'Saya sendiri':teacher(m.teacherId).name,fee:Number(m.studentFee)||0})),total:rows.reduce((a,m)=>a+(Number(m.studentFee)||0),0),recipient:$('billRecipient').value.trim(),period:fmtDate($('billFrom').value)+' s.d. '+fmtDate($('billTo').value)}}
 function safeName(s){return (s||'Tagihan').replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40)||'Tagihan'}
 function downloadBillPdf(){const p=billPayload();if(!p.rows.length)return alert('Tidak ada pertemuan untuk diunduh.');const fn='Tagihan_Privat_'+safeName(p.recipient)+'_'+$('billFrom').value+'_sd_'+$('billTo').value+'.pdf';if(window.Android&&Android.saveInvoicePdf){Android.saveInvoicePdf(fn,p.recipient,p.period,JSON.stringify(p.rows),rupiah(p.total));return}alert('Download PDF tersedia pada aplikasi Android.')}
 function csvCell(s){s=String(s??'');return '"'+s.replace(/"/g,'""')+'"'}
-function downloadBillCsv(){const p=billPayload();if(!p.rows.length)return alert('Tidak ada pertemuan untuk diunduh.');let csv='No,Tanggal,Siswa,Pengajar,Tagihan\n'+p.rows.map(r=>[r.no,r.date,r.student,r.teacher,r.fee].map(csvCell).join(',')).join('\n')+'\n,,,TOTAL,'+p.total;const fn='Tagihan_Privat_'+safeName(p.recipient)+'_'+$('billFrom').value+'_sd_'+$('billTo').value+'.csv';if(window.Android&&Android.saveCsv){Android.saveCsv(fn,csv);return}const b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=fn;a.click();URL.revokeObjectURL(a.href)}
+function downloadBillCsv(){
+  const p=billPayload();
+  if(!p.rows.length)return alert('Tidak ada pertemuan untuk diunduh.');
+  const sm={},tm={};
+  p.rows.forEach(r=>{
+    sm[r.student]??={count:0,total:0};sm[r.student].count++;sm[r.student].total+=Number(r.fee)||0;
+    tm[r.teacher]??={count:0,total:0};tm[r.teacher].count++;tm[r.teacher].total+=Number(r.fee)||0;
+  });
+  let csv='No,Tanggal,Siswa,Pengajar,Tagihan\n'+p.rows.map(r=>[r.no,r.date,r.student,r.teacher,r.fee].map(csvCell).join(',')).join('\n');
+  csv+='\n\nREKAP PER SISWA\nSiswa,Jumlah Pertemuan,Subtotal\n'+Object.entries(sm).map(([n,x])=>[n,x.count,x.total].map(csvCell).join(',')).join('\n');
+  csv+='\n\nREKAP PER PENGAJAR\nPengajar,Jumlah Pertemuan,Subtotal\n'+Object.entries(tm).map(([n,x])=>[n,x.count,x.total].map(csvCell).join(',')).join('\n');
+  csv+='\n\n,,GRAND TOTAL,'+p.total;
+  const fn='Tagihan_Privat_'+safeName(p.recipient)+'_'+$('billFrom').value+'_sd_'+$('billTo').value+'.csv';
+  if(window.Android&&Android.saveCsv){Android.saveCsv(fn,csv);return}
+  const b=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=fn;a.click();URL.revokeObjectURL(a.href)
+}
 function showBackup(){const txt=JSON.stringify(data);openModal(`<h2>Cadangan Data</h2><div class="notice">Salin seluruh teks di bawah dan simpan di tempat aman.</div><div class="field" style="margin-top:11px"><textarea id="backupText" style="min-height:260px;font-family:monospace;font-size:10px">${esc(txt)}</textarea></div><div class="actions"><button class="btn secondary" onclick="closeModal()">Tutup</button><button class="btn primary" onclick="selectBackup()">Salin</button></div>`)}function selectBackup(){const e=$('backupText');e.focus();e.select();try{document.execCommand('copy');alert('Cadangan disalin.')}catch(x){alert('Blok teks lalu salin secara manual.')}}
 function showRestore(){openModal(`<h2>Pulihkan Data</h2><div class="notice">Data saat ini akan diganti oleh cadangan yang ditempel.</div><div class="field" style="margin-top:11px"><textarea id="restoreText" style="min-height:240px;font-family:monospace;font-size:10px" placeholder="Tempel data cadangan"></textarea></div><div class="actions"><button class="btn secondary" onclick="closeModal()">Batal</button><button class="btn primary" onclick="restoreNow()">Pulihkan</button></div>`)}function restoreNow(){try{const x=JSON.parse($('restoreText').value);if(!Array.isArray(x.students)||!Array.isArray(x.teachers)||!Array.isArray(x.meetings))throw 0;data=x;closeModal();save();alert('Data berhasil dipulihkan.')}catch(e){alert('Format cadangan tidak valid.')}}
 window.addEventListener('load',()=>{load();$('searchMeeting').addEventListener('input',renderMeetings);$('meetingFilter').addEventListener('change',renderMeetings)});
