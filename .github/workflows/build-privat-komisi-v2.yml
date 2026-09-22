@@ -19,16 +19,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build signed debug APK
+      - name: Restore signing keystore
+        working-directory: privat-komisi-android/app
+        run: base64 -d privatkomisi.keystore.b64 > privatkomisi.keystore
+      - name: Build signed release APK
         working-directory: privat-komisi-android
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
-      - name: Verify APK signature
+        run: gradle :app:assembleRelease --no-daemon --stacktrace
+      - name: Verify APK signature and package
         run: |
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs privat-komisi-android/app/build/outputs/apk/debug/app-debug.apk
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging privat-komisi-android/app/build/outputs/apk/debug/app-debug.apk | head -5
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose --print-certs privat-komisi-android/app/build/outputs/apk/release/app-release.apk
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging privat-komisi-android/app/build/outputs/apk/release/app-release.apk | head -8
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: PrivatKomisi-v3-installable
-          path: privat-komisi-android/app/build/outputs/apk/debug/app-debug.apk
+          name: PrivatKomisi-v4-profile-recap
+          path: privat-komisi-android/app/build/outputs/apk/release/app-release.apk
           retention-days: 1
