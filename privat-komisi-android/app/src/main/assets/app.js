@@ -75,7 +75,7 @@ function renderBillPreviewOnly(){
 }
 function billPayload(){const rows=billRows();return {rows:rows.map((m,i)=>({no:i+1,date:fmtDate(m.date),student:student(m.studentId).name,teacher:m.mode==='self'?ownerName():teacher(m.teacherId).name,fee:Number(m.studentFee)||0})),total:rows.reduce((a,m)=>a+(Number(m.studentFee)||0),0),recipient:$('billRecipient').value.trim(),period:fmtDate($('billFrom').value)+' s.d. '+fmtDate($('billTo').value)}}
 function safeName(s){return (s||'Tagihan').replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40)||'Tagihan'}
-function downloadBillPdf(){const p=billPayload();if(!p.rows.length)return alert('Tidak ada pertemuan untuk diunduh.');const fn='Tagihan_Privat_'+safeName(p.recipient)+'_'+$('billFrom').value+'_sd_'+$('billTo').value+'.pdf';if(window.Android&&Android.saveInvoicePdf){Android.saveInvoicePdf(fn,p.recipient,p.period,JSON.stringify(p.rows),rupiah(p.total));return}alert('Download PDF tersedia pada aplikasi Android.')}
+function downloadBillPdf(){const p=billPayload();if(!p.rows.length)return alert('Tidak ada pertemuan untuk diunduh.');const fn='Tagihan_Privat_'+safeName(p.recipient)+'_'+$('billFrom').value+'_sd_'+$('billTo').value+'.pdf';if(window.Android&&Android.saveInvoicePdf){Android.saveInvoicePdf(fn,p.recipient,p.period,ownerName(),JSON.stringify(p.rows),rupiah(p.total));return}alert('Download PDF tersedia pada aplikasi Android.')}
 function csvCell(s){s=String(s??'');return '"'+s.replace(/"/g,'""')+'"'}
 function downloadBillCsv(){
   const p=billPayload();
