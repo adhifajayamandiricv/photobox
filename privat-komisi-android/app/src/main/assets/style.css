@@ -7,3 +7,9 @@
 .teacher-recap{padding:10px 0 12px;border-bottom:1px dashed var(--line);font-size:12px;line-height:1.55}
 .teacher-recap:last-of-type{border-bottom:0}
 .teacher-recap b{font-size:13px;color:var(--ink)}
+
+.transfer-recap{padding:11px 0 12px;border-bottom:1px dashed var(--line);font-size:12px;line-height:1.5}
+.transfer-recap:last-of-type{border-bottom:0}
+.transfer-recap b{font-size:13px;color:var(--navy2)}
+.transfer-recap small{display:block;color:var(--muted);margin-top:3px}
+.transfer-amount{font-size:16px;font-weight:900;color:var(--good);white-space:nowrap}
