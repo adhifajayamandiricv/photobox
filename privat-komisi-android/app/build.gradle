@@ -10,8 +10,8 @@ android {
         applicationId 'com.dadihardadi.privatkomisi.stable'
         minSdk 21
         targetSdk 35
-        versionCode 7
-        versionName '7.0'
+        versionCode 8
+        versionName '8.0'
     }
 
     signingConfigs {
@@ -34,4 +34,9 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+}
+
+
+dependencies {
+    implementation 'androidx.core:core:1.15.0'
 }
