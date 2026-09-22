@@ -86,21 +86,29 @@ function renderBillPreviewOnly(){
     $('billPreview').innerHTML='<div class="empty">Belum ada pertemuan sesuai siswa, pengajar, dan periode yang dipilih.</div>';
     return;
   }
-  const sm={},tm={};
+  const sm={},tm={},rm={};
   rows.forEach(m=>{
     const sn=student(m.studentId).name,td=teacherBankData(m),fee=Number(m.studentFee)||0;
     sm[sn]??={count:0,total:0};sm[sn].count++;sm[sn].total+=fee;
     tm[td.name]??={count:0,total:0,bankName:td.bankName,accountHolder:td.accountHolder,accountNumber:td.accountNumber};
     tm[td.name].count++;tm[td.name].total+=fee;
+
+    const bank=(td.bankName||'').trim(),acct=(td.accountNumber||'').trim(),holder=(td.accountHolder||td.name||'').trim();
+    const key=acct?(bank.toLowerCase()+'|'+acct.replace(/\s+/g,'')):('teacher|'+td.name.toLowerCase());
+    rm[key]??={bankName:bank,accountHolder:holder,accountNumber:acct,total:0,teachers:new Set()};
+    rm[key].total+=fee;rm[key].teachers.add(td.name);
   });
   const studentRecap=Object.entries(sm).sort((a,b)=>a[0].localeCompare(b[0])).map(([n,x])=>`<div class="summaryline"><span><b>${esc(n)}</b><br><small>${x.count} pertemuan</small></span><b>${rupiah(x.total)}</b></div>`).join('');
   const teacherRecap=Object.entries(tm).sort((a,b)=>a[0].localeCompare(b[0])).map(([n,x])=>`<div class="teacher-recap"><b>${esc(n)}</b><div>${x.count} pertemuan</div><div>${x.bankName?`Rek. ${esc(x.bankName)} an. ${esc(x.accountHolder||n)}`:''}</div><div>${x.accountNumber?`Norek. ${esc(x.accountNumber)}`:''}</div></div>`).join('');
+  const transferRecap=Object.values(rm).sort((a,b)=>(a.bankName+a.accountNumber).localeCompare(b.bankName+b.accountNumber)).map(x=>`<div class="transfer-recap"><div class="row"><div class="grow"><b>${x.bankName?`Transfer ke ${esc(x.bankName)}`:'Rekening belum lengkap'}</b><div>${x.accountHolder?`a.n. ${esc(x.accountHolder)}`:''}</div><div>${x.accountNumber?`Norek. ${esc(x.accountNumber)}`:'Nomor rekening belum diisi'}</div><small>Untuk: ${esc([...x.teachers].sort().join(', '))}</small></div><div class="right"><div class="transfer-amount">${rupiah(x.total)}</div></div></div></div>`).join('');
   $('billPreview').innerHTML=`<div class="tablewrap"><table class="billtable"><thead><tr><th>No</th><th>Tanggal</th><th>Siswa</th><th>Pengajar</th><th>Tagihan</th></tr></thead><tbody>${rows.map((m,i)=>`<tr><td>${i+1}</td><td>${fmtDate(m.date)}</td><td>${esc(student(m.studentId).name)}</td><td>${esc(teacherBankData(m).name)}</td><td>${rupiah(m.studentFee)}</td></tr>`).join('')}</tbody></table></div>
   <div class="card" style="margin-top:10px;box-shadow:none">
     <div class="section" style="margin:0 0 5px"><h2 style="font-size:12px">Rekap per siswa</h2><span class="pill">${Object.keys(sm).length} siswa</span></div>
     ${studentRecap}
     <div class="invoice-recap-title">${esc(billRecapHeading())}</div>
     ${teacherRecap}
+    <div class="invoice-recap-title">Rekap Transfer</div>
+    ${transferRecap}
     <div class="billtotal" style="border-top:2px solid var(--navy2);margin-top:10px"><span>Grand total tagihan</span><b>${rupiah(total)}</b></div>
   </div>`;
 }
@@ -111,14 +119,20 @@ function csvCell(s){s=String(s??'');return '"'+s.replace(/"/g,'""')+'"'}
 function downloadBillCsv(){
   const p=billPayload();
   if(!p.rows.length)return alert('Tidak ada pertemuan untuk diunduh.');
-  const sm={},tm={};
+  const sm={},tm={},rm={};
   p.rows.forEach(r=>{
-    sm[r.student]??={count:0,total:0};sm[r.student].count++;sm[r.student].total+=Number(r.fee)||0;
-    tm[r.teacher]??={count:0,total:0,bankName:r.teacherBank,accountHolder:r.teacherAccountHolder,accountNumber:r.teacherAccountNumber};tm[r.teacher].count++;tm[r.teacher].total+=Number(r.fee)||0;
+    const fee=Number(r.fee)||0;
+    sm[r.student]??={count:0,total:0};sm[r.student].count++;sm[r.student].total+=fee;
+    tm[r.teacher]??={count:0,total:0,bankName:r.teacherBank,accountHolder:r.teacherAccountHolder,accountNumber:r.teacherAccountNumber};tm[r.teacher].count++;tm[r.teacher].total+=fee;
+    const bank=(r.teacherBank||'').trim(),acct=(r.teacherAccountNumber||'').trim(),holder=(r.teacherAccountHolder||r.teacher||'').trim();
+    const key=acct?(bank.toLowerCase()+'|'+acct.replace(/\s+/g,'')):('teacher|'+r.teacher.toLowerCase());
+    rm[key]??={bankName:bank,accountHolder:holder,accountNumber:acct,total:0,teachers:new Set()};
+    rm[key].total+=fee;rm[key].teachers.add(r.teacher);
   });
   let csv='No,Tanggal,Siswa,Pengajar,Tagihan\n'+p.rows.map(r=>[r.no,r.date,r.student,r.teacher,r.fee].map(csvCell).join(',')).join('\n');
   csv+='\n\nREKAP PER SISWA\nSiswa,Jumlah Pertemuan,Subtotal\n'+Object.entries(sm).map(([n,x])=>[n,x.count,x.total].map(csvCell).join(',')).join('\n');
   csv+='\n\n'+p.recapTitle+'\nPengajar,Jumlah Pertemuan,Bank,Atas Nama,Nomor Rekening\n'+Object.entries(tm).map(([n,x])=>[n,x.count,x.bankName,x.accountHolder,x.accountNumber].map(csvCell).join(',')).join('\n');
+  csv+='\n\nREKAP TRANSFER\nBank,Atas Nama,Nomor Rekening,Pengajar Tercakup,Jumlah Transfer\n'+Object.values(rm).map(x=>[x.bankName,x.accountHolder,x.accountNumber,[...x.teachers].sort().join(' + '),x.total].map(csvCell).join(',')).join('\n');
   csv+='\n\n,,GRAND TOTAL,'+p.total;
   const fn='Tagihan_Privat_'+safeName(p.recipient)+'_'+$('billFrom').value+'_sd_'+$('billTo').value+'.csv';
   if(window.Android&&Android.saveCsv){Android.saveCsv(fn,csv);return}
