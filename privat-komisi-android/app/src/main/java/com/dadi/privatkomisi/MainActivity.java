@@ -87,7 +87,7 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
-        public void saveInvoicePdf(String fileName, String recipient, String period, String rowsJson, String totalText) {
+        public void saveInvoicePdf(String fileName, String recipient, String period, String ownerName, String rowsJson, String totalText) {
             PdfDocument doc = new PdfDocument();
             try {
                 JSONArray rows = new JSONArray(rowsJson);
@@ -138,7 +138,12 @@ public class MainActivity extends Activity {
                         y += 15;
                     }
                     canvas.drawText("Periode: " + period, left, y, p);
-                    y += 17;
+                    y += 15;
+                    if (ownerName != null && !ownerName.trim().isEmpty()) {
+                        canvas.drawText("Pengelola privat: " + ownerName.trim(), left, y, p);
+                        y += 15;
+                    }
+                    y += 2;
                     p.setColor(Color.rgb(25, 185, 172));
                     canvas.drawRect(left, y, right, y + 3, p);
                     y += 17;
@@ -202,7 +207,12 @@ public class MainActivity extends Activity {
                                 y += 14;
                             }
                             canvas.drawText("Periode: " + period, left, y, p);
-                            y += 18;
+                            y += 14;
+                            if (ownerName != null && !ownerName.trim().isEmpty()) {
+                                canvas.drawText("Pengelola privat: " + ownerName.trim(), left, y, p);
+                                y += 14;
+                            }
+                            y += 4;
                             p.setColor(Color.rgb(25, 185, 172));
                             canvas.drawRect(left, y, right, y + 3, p);
                             y += 20;
