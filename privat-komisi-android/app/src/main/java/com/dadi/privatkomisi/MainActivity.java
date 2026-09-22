@@ -30,6 +30,8 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.text.NumberFormat;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -96,6 +98,19 @@ public class MainActivity extends Activity {
                 final int topStart = 38;
                 final int rowH = 23;
 
+                TreeMap<String, double[]> byStudent = new TreeMap<>();
+                TreeMap<String, double[]> byTeacher = new TreeMap<>();
+                for (int i = 0; i < rows.length(); i++) {
+                    JSONObject r = rows.getJSONObject(i);
+                    String studentName = r.optString("student", "-");
+                    String teacherName = r.optString("teacher", "-");
+                    double fee = r.optDouble("fee", 0);
+                    double[] ss = byStudent.containsKey(studentName) ? byStudent.get(studentName) : new double[]{0, 0};
+                    ss[0] += 1; ss[1] += fee; byStudent.put(studentName, ss);
+                    double[] tt = byTeacher.containsKey(teacherName) ? byTeacher.get(teacherName) : new double[]{0, 0};
+                    tt[0] += 1; tt[1] += fee; byTeacher.put(teacherName, tt);
+                }
+
                 Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
                 p.setColor(Color.rgb(19, 32, 51));
                 p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
@@ -106,38 +121,38 @@ public class MainActivity extends Activity {
                 while (rowIndex < rows.length() || pageNo == 1) {
                     PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(width, height, pageNo).create();
                     PdfDocument.Page page = doc.startPage(info);
-                    Canvas c = page.getCanvas();
-                    c.drawColor(Color.WHITE);
+                    Canvas canvas = page.getCanvas();
+                    canvas.drawColor(Color.WHITE);
                     int y = topStart;
 
                     p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
                     p.setTextSize(18);
                     p.setColor(Color.rgb(11, 37, 69));
-                    c.drawText("TAGIHAN LES PRIVAT", left, y, p);
+                    canvas.drawText("TAGIHAN LES PRIVAT", left, y, p);
                     y += 21;
                     p.setTextSize(10.5f);
                     p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
                     p.setColor(Color.rgb(74, 91, 112));
                     if (recipient != null && !recipient.trim().isEmpty()) {
-                        c.drawText("Kepada: " + recipient.trim(), left, y, p);
+                        canvas.drawText("Kepada: " + recipient.trim(), left, y, p);
                         y += 15;
                     }
-                    c.drawText("Periode: " + period, left, y, p);
+                    canvas.drawText("Periode: " + period, left, y, p);
                     y += 17;
                     p.setColor(Color.rgb(25, 185, 172));
-                    c.drawRect(left, y, right, y + 3, p);
+                    canvas.drawRect(left, y, right, y + 3, p);
                     y += 17;
 
                     p.setColor(Color.rgb(241,245,249));
-                    c.drawRect(left, y - 14, right, y + 8, p);
+                    canvas.drawRect(left, y - 14, right, y + 8, p);
                     p.setColor(Color.rgb(50, 65, 85));
                     p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
                     p.setTextSize(9.5f);
-                    drawCell(c, p, "No", 40, y, 25);
-                    drawCell(c, p, "Tanggal", 76, y, 86);
-                    drawCell(c, p, "Siswa", 170, y, 205);
-                    drawCell(c, p, "Pengajar", 382, y, 215);
-                    drawCellRight(c, p, "Tagihan", 800, y, 122);
+                    drawCell(canvas, p, "No", 40, y, 25);
+                    drawCell(canvas, p, "Tanggal", 76, y, 86);
+                    drawCell(canvas, p, "Siswa", 170, y, 205);
+                    drawCell(canvas, p, "Pengajar", 382, y, 215);
+                    drawCellRight(canvas, p, "Tagihan", 800, y, 122);
                     y += 13;
 
                     p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
@@ -148,38 +163,114 @@ public class MainActivity extends Activity {
                         JSONObject row = rows.getJSONObject(rowIndex);
                         if (rowIndex % 2 == 1) {
                             p.setColor(Color.rgb(250,252,254));
-                            c.drawRect(left, y - 12, right, y + 10, p);
+                            canvas.drawRect(left, y - 12, right, y + 10, p);
                             p.setColor(Color.rgb(19,32,51));
                         }
-                        drawCell(c, p, String.valueOf(row.optInt("no", rowIndex + 1)), 40, y, 25);
-                        drawCell(c, p, row.optString("date", ""), 76, y, 86);
-                        drawCell(c, p, row.optString("student", ""), 170, y, 205);
-                        drawCell(c, p, row.optString("teacher", ""), 382, y, 215);
-                        drawCellRight(c, p, rupiah(row.optDouble("fee", 0)), 800, y, 122);
+                        drawCell(canvas, p, String.valueOf(row.optInt("no", rowIndex + 1)), 40, y, 25);
+                        drawCell(canvas, p, row.optString("date", ""), 76, y, 86);
+                        drawCell(canvas, p, row.optString("student", ""), 170, y, 205);
+                        drawCell(canvas, p, row.optString("teacher", ""), 382, y, 215);
+                        drawCellRight(canvas, p, rupiah(row.optDouble("fee", 0)), 800, y, 122);
                         p.setColor(Color.rgb(226,232,240));
-                        c.drawLine(left, y + 10, right, y + 10, p);
+                        canvas.drawLine(left, y + 10, right, y + 10, p);
                         p.setColor(Color.rgb(19,32,51));
                         y += rowH;
                         rowIndex++;
                     }
 
                     if (rowIndex >= rows.length()) {
-                        y += 10;
+                        int recapNeeded = 115 + (byStudent.size() + byTeacher.size()) * 18;
+                        if (y + recapNeeded > 560) {
+                            doc.finishPage(page);
+                            pageNo++;
+                            PdfDocument.PageInfo recapInfo = new PdfDocument.PageInfo.Builder(width, height, pageNo).create();
+                            page = doc.startPage(recapInfo);
+                            canvas = page.getCanvas();
+                            canvas.drawColor(Color.WHITE);
+                            y = 46;
+
+                            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                            p.setTextSize(16);
+                            p.setColor(Color.rgb(11, 37, 69));
+                            canvas.drawText("REKAP TAGIHAN", left, y, p);
+                            y += 19;
+                            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
+                            p.setTextSize(9.5f);
+                            p.setColor(Color.rgb(74, 91, 112));
+                            if (recipient != null && !recipient.trim().isEmpty()) {
+                                canvas.drawText("Kepada: " + recipient.trim(), left, y, p);
+                                y += 14;
+                            }
+                            canvas.drawText("Periode: " + period, left, y, p);
+                            y += 18;
+                            p.setColor(Color.rgb(25, 185, 172));
+                            canvas.drawRect(left, y, right, y + 3, p);
+                            y += 20;
+                        } else {
+                            y += 12;
+                        }
+
+                        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                        p.setTextSize(11.5f);
                         p.setColor(Color.rgb(11, 37, 69));
+                        canvas.drawText("REKAP PER SISWA", left, y, p);
+                        y += 17;
+                        p.setTextSize(9.5f);
+                        for (Map.Entry<String, double[]> e : byStudent.entrySet()) {
+                            double[] v = e.getValue();
+                            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                            p.setColor(Color.rgb(19,32,51));
+                            drawCell(canvas, p, e.getKey(), left, y, 360);
+                            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
+                            p.setColor(Color.rgb(90,103,120));
+                            canvas.drawText(((int)v[0]) + " pertemuan", 430, y, p);
+                            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                            p.setColor(Color.rgb(19,32,51));
+                            drawCellRight(canvas, p, rupiah(v[1]), right, y, 165);
+                            y += 18;
+                        }
+
+                        y += 8;
+                        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                        p.setTextSize(11.5f);
+                        p.setColor(Color.rgb(11, 37, 69));
+                        canvas.drawText("REKAP PER PENGAJAR", left, y, p);
+                        y += 17;
+                        p.setTextSize(9.5f);
+                        for (Map.Entry<String, double[]> e : byTeacher.entrySet()) {
+                            double[] v = e.getValue();
+                            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                            p.setColor(Color.rgb(19,32,51));
+                            drawCell(canvas, p, e.getKey(), left, y, 360);
+                            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
+                            p.setColor(Color.rgb(90,103,120));
+                            canvas.drawText(((int)v[0]) + " pertemuan", 430, y, p);
+                            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                            p.setColor(Color.rgb(19,32,51));
+                            drawCellRight(canvas, p, rupiah(v[1]), right, y, 165);
+                            y += 18;
+                        }
+
+                        y += 9;
+                        p.setColor(Color.rgb(11, 37, 69));
+                        canvas.drawRect(left, y, right, y + 2, p);
+                        y += 21;
                         p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
                         p.setTextSize(12.5f);
-                        c.drawText("TOTAL TAGIHAN", 590, y, p);
-                        drawCellRight(c, p, totalText, 800, y, 190);
-                        y += 22;
+                        canvas.drawText("GRAND TOTAL TAGIHAN", 555, y, p);
+                        drawCellRight(canvas, p, totalText, right, y, 165);
+                        y += 21;
+
                         p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
                         p.setTextSize(8.5f);
                         p.setColor(Color.rgb(107,119,140));
-                        c.drawText("Dibuat melalui aplikasi Privat & Komisi", left, Math.min(y + 10, 565), p);
+                        canvas.drawText("Rekap di atas berdasarkan siswa dan pengajar yang dipilih pada tagihan.", left, Math.min(y + 6, 565), p);
+                        doc.finishPage(page);
+                        break;
+                    } else {
+                        doc.finishPage(page);
+                        pageNo++;
                     }
-
-                    doc.finishPage(page);
-                    pageNo++;
-                    if (rowIndex >= rows.length()) break;
                 }
 
                 OutputStream out = openDownload(fileName, "application/pdf");
