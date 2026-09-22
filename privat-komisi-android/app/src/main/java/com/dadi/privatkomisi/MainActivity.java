@@ -32,6 +32,7 @@ import java.text.NumberFormat;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 public class MainActivity extends Activity {
     private WebView webView;
@@ -101,6 +102,9 @@ public class MainActivity extends Activity {
                 TreeMap<String, double[]> byStudent = new TreeMap<>();
                 TreeMap<String, double[]> byTeacher = new TreeMap<>();
                 TreeMap<String, String[]> teacherBank = new TreeMap<>();
+                TreeMap<String, Double> transferAmount = new TreeMap<>();
+                TreeMap<String, String[]> transferBank = new TreeMap<>();
+                TreeMap<String, TreeSet<String>> transferTeachers = new TreeMap<>();
                 for (int i = 0; i < rows.length(); i++) {
                     JSONObject r = rows.getJSONObject(i);
                     String studentName = r.optString("student", "-");
@@ -117,6 +121,23 @@ public class MainActivity extends Activity {
                             r.optString("teacherAccountNumber", "")
                         });
                     }
+
+                    String bankName = r.optString("teacherBank", "").trim();
+                    String holderName = r.optString("teacherAccountHolder", teacherName).trim();
+                    String accountNumber = r.optString("teacherAccountNumber", "").trim();
+                    String normalizedAccount = accountNumber.replaceAll("\\s+", "");
+                    String transferKey = !normalizedAccount.isEmpty()
+                            ? bankName.toLowerCase(Locale.ROOT) + "|" + normalizedAccount
+                            : "teacher|" + teacherName.toLowerCase(Locale.ROOT);
+                    transferAmount.put(transferKey, transferAmount.containsKey(transferKey)
+                            ? transferAmount.get(transferKey) + fee : fee);
+                    if (!transferBank.containsKey(transferKey)) {
+                        transferBank.put(transferKey, new String[]{bankName, holderName, accountNumber});
+                    }
+                    if (!transferTeachers.containsKey(transferKey)) {
+                        transferTeachers.put(transferKey, new TreeSet<String>());
+                    }
+                    transferTeachers.get(transferKey).add(teacherName);
                 }
 
                 Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -192,7 +213,7 @@ public class MainActivity extends Activity {
                     }
 
                     if (rowIndex >= rows.length()) {
-                        int recapNeeded = 135 + byStudent.size() * 18 + byTeacher.size() * 62;
+                        int recapNeeded = 175 + byStudent.size() * 18 + byTeacher.size() * 62 + transferAmount.size() * 64;
                         if (y + recapNeeded > 560) {
                             doc.finishPage(page);
                             pageNo++;
@@ -290,6 +311,57 @@ public class MainActivity extends Activity {
                             if (bankName.trim().isEmpty() && account.trim().isEmpty()) {
                                 p.setColor(Color.rgb(160,95,30));
                                 canvas.drawText("Data rekening belum diisi", left, y, p);
+                                y += 14;
+                            }
+
+                            p.setColor(Color.rgb(226,232,240));
+                            canvas.drawLine(left, y + 2, right, y + 2, p);
+                            y += 12;
+                        }
+
+                        y += 4;
+                        p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                        p.setTextSize(12f);
+                        p.setColor(Color.rgb(11, 37, 69));
+                        canvas.drawText("REKAP TRANSFER", left, y, p);
+                        y += 19;
+
+                        for (Map.Entry<String, Double> e : transferAmount.entrySet()) {
+                            String[] bank = transferBank.get(e.getKey());
+                            String bankName = bank != null ? bank[0] : "";
+                            String holder = bank != null ? bank[1] : "";
+                            String account = bank != null ? bank[2] : "";
+                            TreeSet<String> names = transferTeachers.get(e.getKey());
+                            String teachers = names == null ? "" : android.text.TextUtils.join(", ", names);
+
+                            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.BOLD));
+                            p.setTextSize(10.5f);
+                            p.setColor(Color.rgb(19,32,51));
+                            String transferTitle = bankName.trim().isEmpty()
+                                    ? "Rekening belum lengkap"
+                                    : "Transfer ke " + bankName.trim();
+                            drawCell(canvas, p, transferTitle, left, y, 370);
+                            drawCellRight(canvas, p, rupiah(e.getValue()), right, y, 190);
+                            y += 15;
+
+                            p.setTypeface(Typeface.create(Typeface.DEFAULT, Typeface.NORMAL));
+                            p.setTextSize(9.5f);
+                            p.setColor(Color.rgb(74,91,112));
+                            if (!holder.trim().isEmpty()) {
+                                drawCell(canvas, p, "a.n. " + holder.trim(), left, y, 400);
+                                y += 14;
+                            }
+                            if (!account.trim().isEmpty()) {
+                                canvas.drawText("Norek. " + account.trim(), left, y, p);
+                                y += 14;
+                            } else {
+                                p.setColor(Color.rgb(160,95,30));
+                                canvas.drawText("Nomor rekening belum diisi", left, y, p);
+                                y += 14;
+                            }
+                            if (!teachers.trim().isEmpty()) {
+                                p.setColor(Color.rgb(90,103,120));
+                                drawCell(canvas, p, "Untuk: " + teachers, left, y, 650);
                                 y += 14;
                             }
 
