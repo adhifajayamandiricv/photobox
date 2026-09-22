@@ -121,7 +121,17 @@ function renderBillPreviewOnly(){
 }
 function billPayload(){const rows=billRows();return {rows:rows.map((m,i)=>{const td=teacherBankData(m);return {no:i+1,date:fmtDate(m.date),student:student(m.studentId).name,teacher:td.name,teacherBank:td.bankName,teacherAccountHolder:td.accountHolder,teacherAccountNumber:td.accountNumber,fee:Number(m.studentFee)||0}}),total:rows.reduce((a,m)=>a+(Number(m.studentFee)||0),0),recipient:$('billRecipient').value.trim(),period:fmtDate($('billFrom').value)+' s.d. '+fmtDate($('billTo').value),recapTitle:billRecapHeading()}}
 function safeName(s){return (s||'Tagihan').replace(/[^a-zA-Z0-9_-]+/g,'_').replace(/^_+|_+$/g,'').slice(0,40)||'Tagihan'}
-function downloadBillPdf(){const p=billPayload();if(!p.rows.length)return alert('Tidak ada pertemuan untuk diunduh.');const fn='Tagihan_Privat_'+safeName(p.recipient)+'_'+$('billFrom').value+'_sd_'+$('billTo').value+'.pdf';if(window.Android&&Android.saveInvoicePdf){Android.saveInvoicePdf(fn,p.recipient,p.period,ownerName(),p.recapTitle,JSON.stringify(p.rows),rupiah(p.total));return}alert('Download PDF tersedia pada aplikasi Android.')}
+function downloadBillPdf(){const p=billPayload();if(!p.rows.length)return alert('Tidak ada pertemuan untuk diunduh.');const fn='Tagihan_Privat_'+safeName(p.recipient)+'_'+$('billFrom').value+'_sd_'+$('billTo').value+'.pdf';if(window.Android&&Android.saveInvoicePdf){Android.saveInvoicePdf(fn,p.recipient,p.period,ownerName(),p.recapTitle,JSON.stringify(p.rows),rupiah(p.total),false,'');return}alert('Download PDF tersedia pada aplikasi Android.')}
+function shareBillWhatsapp(){
+  const p=billPayload();
+  if(!p.rows.length)return alert('Tidak ada pertemuan untuk dikirim.');
+  const fn='Tagihan_Privat_'+safeName(p.recipient)+'_'+$('billFrom').value+'_sd_'+$('billTo').value+'.pdf';
+  const h=new Date().getHours(),salam=h<11?'Selamat pagi':h<15?'Selamat siang':h<18?'Selamat sore':'Selamat malam';
+  const tujuan=p.recipient?(' '+p.recipient):' Bapak/Ibu';
+  const msg=salam+','+tujuan+'.\n\nBerikut kami sampaikan rekapitulasi pertemuan dan tagihan les periode '+p.period+'. Rincian pertemuan dan rekening pembayaran terlampir pada PDF.\n\nTerima kasih.';
+  if(window.Android&&Android.saveInvoicePdf){Android.saveInvoicePdf(fn,p.recipient,p.period,ownerName(),p.recapTitle,JSON.stringify(p.rows),rupiah(p.total),true,msg);return}
+  alert('Fitur kirim WhatsApp tersedia pada aplikasi Android.');
+}
 function csvCell(s){s=String(s??'');return '"'+s.replace(/"/g,'""')+'"'}
 function downloadBillCsv(){
   const p=billPayload();
