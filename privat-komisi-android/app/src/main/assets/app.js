@@ -46,15 +46,55 @@ function seedDefaultTeachersForFreshInstall(){
 }
 function calc(m){const gross=Number(m.studentFee)||0,pay=m.mode==='teacher'?(Number(m.teacherPay)||0):0,commission=m.mode==='teacher'?gross-pay:0,self=m.mode==='self'?gross:0;return{gross,pay,commission,self,total:self+commission}}
 function save(){localStorage.setItem(K,JSON.stringify(data));renderAll()}
-function load(){let hasStored=false;try{const x=JSON.parse(localStorage.getItem(K)||'null');if(x&&Array.isArray(x.students)&&Array.isArray(x.teachers)&&Array.isArray(x.meetings)){data=x;hasStored=true;data.students=data.students.map(s=>({...s,billingName:s.billingName||''}));data.teachers=data.teachers.map(t=>({...t,bankName:t.bankName||'',accountHolder:t.accountHolder||'',accountNumber:t.accountNumber||''}))}}catch(e){}if(hasStored)applyDefaultBankToExistingTeachers();else seedDefaultTeachersForFreshInstall();localStorage.setItem(K,JSON.stringify(data));initBillDates();renderAll()}
+function load(){let hasStored=false;try{const x=JSON.parse(localStorage.getItem(K)||'null');if(x&&Array.isArray(x.students)&&Array.isArray(x.teachers)&&Array.isArray(x.meetings)){data=x;hasStored=true;data.students=data.students.map(s=>({...s,billingName:s.billingName||''}));data.teachers=data.teachers.map(t=>({...t,bankName:t.bankName||'',accountHolder:t.accountHolder||'',accountNumber:t.accountNumber||''}))}}catch(e){}if(hasStored)applyDefaultBankToExistingTeachers();else seedDefaultTeachersForFreshInstall();localStorage.setItem(K,JSON.stringify(data));initHomeFilter();initBillDates();renderAll()}
 function isCurrentMonth(d){return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth()}
 function monthRows(d,capToday=true){const mk=monthKey(d),today=dateISO(now);return data.meetings.filter(m=>m.date.startsWith(mk)&&(!capToday||!isCurrentMonth(d)||m.date<=today))}
 function sum(rows){return rows.reduce((a,m)=>{const c=calc(m);a.gross+=c.gross;a.self+=c.self;a.pay+=c.pay;a.commission+=c.commission;a.total+=c.total;return a},{gross:0,self:0,pay:0,commission:0,total:0})}
-function go(p,btn){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('p-'+p).classList.add('active');document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');$('fab').style.display=['home','meetings'].includes(p)?'block':'none';if(p==='bill')renderBill();if(p==='report')renderReport();if(p==='profile')renderProfile();window.scrollTo(0,0)}
+function go(p,btn){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('p-'+p).classList.add('active');document.querySelectorAll('.nav button').forEach(x=>x.classList.remove('active'));if(btn)btn.classList.add('active');$('fab').style.display=['home','meetings'].includes(p)?'block':'none';if(p==='home')renderHome();if(p==='bill')renderBill();if(p==='report')renderReport();if(p==='profile')renderProfile();window.scrollTo(0,0)}
 function renderAll(){renderHome();renderMeetings();renderStudents();renderTeachers();renderReport();renderBillSelectors();renderBill();renderProfile()}
 function renderProfile(){if(!$('profileOwnerName'))return;$('profileOwnerName').value=ownerName();$('profileBankName').value=data.profile?.bankName||'';$('profileAccountHolder').value=data.profile?.accountHolder||ownerName();$('profileAccountNumber').value=data.profile?.accountNumber||''}
 function saveProfile(){const n=$('profileOwnerName').value.trim();if(!n)return alert('Nama wajib diisi.');data.profile=data.profile||{};data.profile.ownerName=n;data.profile.bankName=$('profileBankName').value.trim();data.profile.accountHolder=$('profileAccountHolder').value.trim()||n;data.profile.accountNumber=$('profileAccountNumber').value.trim();save();alert('Profil dan rekening tersimpan. Data ini akan tampil pada rekap tagihan.')}
-function renderHome(){const rows=monthRows(now,true),s=sum(rows);$('periodPill').textContent=monthName(now)+' · s.d. hari ini';const cards=[['Pendapatan saya',rupiah(s.total),'Honor sendiri + komisi'],['Honor privat sendiri',rupiah(s.self),rows.filter(x=>x.mode==='self').length+' pertemuan'],['Estimasi komisi',rupiah(s.commission),rows.filter(x=>x.mode==='teacher').length+' pertemuan pengajar'],['Tagihan siswa',rupiah(s.gross),rows.length+' pertemuan']];$('metrics').innerHTML=cards.map(c=>`<div class="card metric"><div class="lab">${c[0]}</div><div class="val">${c[1]}</div><div class="sub">${c[2]}</div></div>`).join('');const recent=[...rows].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);$('recent').innerHTML=recent.length?recent.map(meetingItem).join(''):'<div class="empty">Belum ada pertemuan pada bulan ini.</div>'}
+function initHomeFilter(){
+  if(!$('homePeriodMode'))return;
+  $('homePeriodMode').value='current';
+  $('homeMonth').value=monthKey(now);
+  $('homeFrom').value=dateISO(new Date(now.getFullYear(),now.getMonth(),1));
+  $('homeTo').value=dateISO(now);
+  homeFilterModeChanged(false)
+}
+function homeFilterModeChanged(doRender=true){
+  if(!$('homePeriodMode'))return;
+  const mode=$('homePeriodMode').value;
+  $('homeMonthWrap').style.display=mode==='month'?'block':'none';
+  $('homeCustomWrap').style.display=mode==='custom'?'grid':'none';
+  if(doRender)renderHome()
+}
+function homeRange(){
+  const today=dateISO(now),mode=$('homePeriodMode')?.value||'current';
+  if(mode==='month'){
+    const mv=$('homeMonth')?.value||monthKey(now),parts=mv.split('-').map(Number),d=new Date(parts[0],parts[1]-1,1);
+    const from=mv+'-01';
+    let to=dateISO(new Date(parts[0],parts[1],0));
+    if(parts[0]===now.getFullYear()&&parts[1]-1===now.getMonth())to=today;
+    return {from,to,label:monthName(d)+(to===today&&isCurrentMonth(d)?' · s.d. hari ini':'')}
+  }
+  if(mode==='custom'){
+    let from=$('homeFrom')?.value||dateISO(new Date(now.getFullYear(),now.getMonth(),1));
+    let to=$('homeTo')?.value||today;
+    if(from>to){const x=from;from=to;to=x}
+    return {from,to,label:fmtDate(from)+' s.d. '+fmtDate(to)}
+  }
+  return {from:dateISO(new Date(now.getFullYear(),now.getMonth(),1)),to:today,label:monthName(now)+' · s.d. hari ini'}
+}
+function renderHome(){
+  if(!$('metrics'))return;
+  const r=homeRange(),rows=data.meetings.filter(m=>m.date>=r.from&&m.date<=r.to),s=sum(rows);
+  $('periodPill').textContent=r.label;
+  const cards=[['Pendapatan saya',rupiah(s.total),'Honor sendiri + komisi'],['Honor privat sendiri',rupiah(s.self),rows.filter(x=>x.mode==='self').length+' pertemuan'],['Estimasi komisi',rupiah(s.commission),rows.filter(x=>x.mode==='teacher').length+' pertemuan pengajar'],['Tagihan siswa',rupiah(s.gross),rows.length+' pertemuan']];
+  $('metrics').innerHTML=cards.map(c=>`<div class="card metric"><div class="lab">${c[0]}</div><div class="val">${c[1]}</div><div class="sub">${c[2]}</div></div>`).join('');
+  const recent=[...rows].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6);
+  $('recent').innerHTML=recent.length?recent.map(meetingItem).join(''):`<div class="empty">Belum ada pertemuan pada periode ${esc(r.label)}.</div>`
+}
 function meetingItem(m){const s=student(m.studentId),t=m.mode==='self'?ownerName():teacher(m.teacherId).name,c=calc(m);return `<div class="item"><div class="row"><div class="grow"><h3>${esc(s.name)}</h3><div><span class="tag ${m.mode}">${esc(t)}</span><span class="tag">${fmtDate(m.date)}</span></div><div class="meta" style="margin-top:5px">Tagihan siswa ${rupiah(c.gross)}${m.note?` · ${esc(m.note)}`:''}</div></div><div class="right"><div class="money ${c.total>=0?'good':'dangerText'}">${rupiah(c.total)}</div><div class="meta">${m.mode==='self'?'honor saya':'komisi saya'}</div></div></div>${m.id?`<div class="row" style="justify-content:flex-end;margin-top:7px"><button class="btn secondary small" onclick="openMeeting('${m.id}')">Edit</button><button class="btn danger small" onclick="delMeeting('${m.id}')">Hapus</button></div>`:''}</div>`}
 function renderMeetings(){if(!$('meetingList'))return;$('activeMonthLabel').textContent=monthName(activeMonth);let rows=$('meetingFilter').value==='all'?[...data.meetings]:monthRows(activeMonth,false);const q=$('searchMeeting').value.trim().toLowerCase();if(q)rows=rows.filter(m=>(student(m.studentId).name+' '+(m.mode==='self'?ownerName():teacher(m.teacherId).name)+' '+(m.note||'')).toLowerCase().includes(q));rows.sort((a,b)=>b.date.localeCompare(a.date));$('meetingCount').textContent=rows.length+' pertemuan';$('meetingList').innerHTML=rows.length?rows.map(meetingItem).join(''):'<div class="empty">Belum ada data yang sesuai.</div>'}
 function renderStudents(){$('studentList').innerHTML=data.students.length?data.students.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(s=>{const count=data.meetings.filter(m=>m.studentId===s.id).length;return `<div class="item"><div class="row"><div class="grow"><h3>${esc(s.name)}</h3><div class="meta">Tarif default ${rupiah(s.defaultFee)}${s.billingName?` · Tagihan: ${esc(s.billingName)}`:''}${s.note?`<br>${esc(s.note)}`:''}</div></div><div class="right"><span class="pill">${count}×</span></div></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn secondary small" onclick="openStudent('${s.id}')">Edit</button></div></div>`}).join(''):'<div class="empty">Belum ada siswa. Tambahkan siswa privat terlebih dahulu.</div>'}
